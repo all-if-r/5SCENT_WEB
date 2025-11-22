@@ -1,0 +1,19 @@
+# Copy and paste these commands into PowerShell
+
+# Step 1: Navigate to directory
+cd "C:\Users\alifr\Documents\COOLYEAH TELKOM\SEMESTER 5\WEB-5SCENT\frontend\web-5scent"
+
+# Step 2: Clean old files
+Remove-Item -Recurse -Force -ErrorAction SilentlyContinue node_modules, .next
+Remove-Item -Force -ErrorAction SilentlyContinue package-lock.json
+
+# Step 3: Install dependencies
+npm install --legacy-peer-deps
+
+# Step 4: Verify (optional)
+npm list next react react-dom --depth=0
+
+# Step 5: Run dev server
+npm run dev
+
+
