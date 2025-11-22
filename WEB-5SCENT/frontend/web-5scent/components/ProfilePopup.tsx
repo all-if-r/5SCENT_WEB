@@ -1,0 +1,189 @@
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { XMarkIcon, Cog6ToothIcon, CubeIcon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
+
+interface ProfilePopupProps {
+  onClose: () => void;
+}
+
+export default function ProfilePopup({ onClose }: ProfilePopupProps) {
+  const { user, logout } = useAuth();
+  const { showToast } = useToast();
+  const router = useRouter();
+
+  // Handle ESC key to close
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
+  if (!user) return null;
+
+  // Get profile picture or generate initial
+  const getProfilePicture = () => {
+    if (user.profile_pic) {
+      // Check if it's a full URL or a path
+      if (user.profile_pic.startsWith('http://') || user.profile_pic.startsWith('https://')) {
+        return user.profile_pic;
+      }
+      // If it's stored in public/profile_pics
+      if (user.profile_pic.includes('profile_pics')) {
+        return `/profile_pics/${user.profile_pic.split('/').pop()}`;
+      }
+      // If it's from Laravel storage
+      return `http://localhost:8000/storage/${user.profile_pic}`;
+    }
+    return null;
+  };
+
+  const profilePic = getProfilePicture();
+  const userInitial = user.name ? user.name.charAt(0).toUpperCase() : 'U';
+
+  const handleMyAccount = () => {
+    onClose();
+    router.push('/profile');
+  };
+
+  const handleMyOrders = () => {
+    onClose();
+    router.push('/orders');
+  };
+
+  const handleLogout = async () => {
+    if (confirm('Are you sure you want to logout?')) {
+      try {
+        logout();
+        showToast('Logged out successfully', 'success');
+        onClose();
+        router.push('/');
+      } catch (error) {
+        showToast('Failed to logout', 'error');
+      }
+    }
+  };
+
+  return (
+    <>
+      {/* Dark Overlay */}
+      <div
+        className="fixed inset-0 bg-black/50 z-50 transition-opacity"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      {/* Popup Card */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+        <div
+          className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden pointer-events-auto animate-fade-in-scale"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Top Section - Gradient Header */}
+          <div className="relative bg-gradient-to-br from-gray-800 to-gray-900 p-6">
+            {/* Close Icon */}
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors"
+              aria-label="Close"
+            >
+              <XMarkIcon className="w-6 h-6" />
+            </button>
+
+            {/* User Identity */}
+            <div className="flex items-center gap-4 mt-4">
+              {/* Profile Picture */}
+              <div className="relative">
+                {profilePic ? (
+                  <img
+                    src={profilePic}
+                    alt={user.name}
+                    className="w-16 h-16 rounded-full object-cover border-2 border-white/20"
+                    onError={(e) => {
+                      // Fallback to initial if image fails to load
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      const parent = target.parentElement;
+                      if (parent) {
+                        const initialDiv = parent.querySelector('.initial-fallback');
+                        if (initialDiv) {
+                          (initialDiv as HTMLElement).style.display = 'flex';
+                        }
+                      }
+                    }}
+                  />
+                ) : null}
+                <div
+                  className={`initial-fallback w-16 h-16 rounded-full bg-white/20 flex items-center justify-center text-white text-2xl font-bold ${profilePic ? 'hidden' : 'flex'}`}
+                >
+                  {userInitial}
+                </div>
+              </div>
+
+              {/* User Info */}
+              <div className="flex-1">
+                <h3 className="text-white font-bold text-lg font-header">{user.name}</h3>
+                <p className="text-white/80 text-sm mt-1">{user.email}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Menu Section */}
+          <div className="py-2">
+            {/* My Account */}
+            <button
+              onClick={handleMyAccount}
+              className="w-full px-6 py-4 flex items-center gap-4 hover:bg-gray-50 transition-colors text-left group"
+            >
+              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors">
+                <Cog6ToothIcon className="w-5 h-5 text-gray-700" />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-semibold text-gray-900 font-body">My Account</h4>
+                <p className="text-sm text-gray-500 font-body">Manage your profile and settings</p>
+              </div>
+            </button>
+
+            {/* My Orders */}
+            <button
+              onClick={handleMyOrders}
+              className="w-full px-6 py-4 flex items-center gap-4 hover:bg-gray-50 transition-colors text-left group"
+            >
+              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors">
+                <CubeIcon className="w-5 h-5 text-gray-700" />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-semibold text-gray-900 font-body">My Orders</h4>
+                <p className="text-sm text-gray-500 font-body">View your order history</p>
+              </div>
+            </button>
+
+            {/* Logout */}
+            <button
+              onClick={handleLogout}
+              className="w-full px-6 py-4 flex items-center gap-4 hover:bg-red-50 transition-colors text-left group"
+            >
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center group-hover:bg-red-200 transition-colors">
+                <ArrowRightOnRectangleIcon className="w-5 h-5 text-red-600" />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-semibold text-red-600 font-body">Logout</h4>
+                <p className="text-sm text-red-500 font-body">Sign out of your account</p>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </>
+  );
+}
+

@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { ShoppingCartIcon, UserIcon, HeartIcon } from '@heroicons/react/24/outline';
+import { ShoppingCartIcon, HeartIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
-import ProfileModal from './ProfileModal';
+import ProfilePopup from './ProfilePopup';
 
 export default function Navigation() {
   const { user } = useAuth();
@@ -72,9 +72,39 @@ export default function Navigation() {
                   {/* User Avatar - Only show when logged in */}
                   <button
                     onClick={() => setShowProfile(true)}
-                    className="p-2 text-gray-700 hover:text-primary-600 transition-colors"
+                    className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-gray-200 hover:border-primary-600 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-600 focus:ring-offset-2"
+                    aria-label="Profile"
                   >
-                    <UserIcon className="w-6 h-6" />
+                    {user.profile_pic ? (
+                      <img
+                        src={
+                          user.profile_pic.startsWith('http')
+                            ? user.profile_pic
+                            : user.profile_pic.includes('profile_pics')
+                            ? `/profile_pics/${user.profile_pic.split('/').pop()}`
+                            : `http://localhost:8000/storage/${user.profile_pic}`
+                        }
+                        alt={user.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          // Fallback to initial if image fails
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          const parent = target.parentElement;
+                          if (parent) {
+                            const initialDiv = parent.querySelector('.nav-initial');
+                            if (initialDiv) {
+                              (initialDiv as HTMLElement).style.display = 'flex';
+                            }
+                          }
+                        }}
+                      />
+                    ) : null}
+                    <div
+                      className={`nav-initial w-full h-full bg-gray-200 flex items-center justify-center text-gray-700 font-semibold text-sm ${user.profile_pic ? 'hidden' : 'flex'}`}
+                    >
+                      {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                    </div>
                   </button>
                 </>
               ) : (
@@ -99,7 +129,7 @@ export default function Navigation() {
           </div>
         </div>
       </nav>
-      {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
+      {showProfile && user && <ProfilePopup onClose={() => setShowProfile(false)} />}
     </>
   );
 }

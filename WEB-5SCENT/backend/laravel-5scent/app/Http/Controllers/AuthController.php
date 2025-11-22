@@ -12,12 +12,36 @@ class AuthController extends Controller
 {
     public function register(Request $request)
     {
-        $validated = $request->validate([
+        // Custom password validation
+        $request->validate([
             'name' => 'required|string|max:100',
             'email' => 'required|string|email|max:100|unique:user,email',
             'password' => 'required|string|min:8|confirmed',
             'phone' => 'nullable|string|max:20',
         ]);
+
+        // Additional password complexity check
+        $password = $request->password;
+        $errors = [];
+        
+        if (!preg_match('/[A-Z]/', $password)) {
+            $errors['password'][] = 'Password must contain at least one uppercase letter.';
+        }
+        if (!preg_match('/[a-z]/', $password)) {
+            $errors['password'][] = 'Password must contain at least one lowercase letter.';
+        }
+        if (!preg_match('/[0-9]/', $password)) {
+            $errors['password'][] = 'Password must contain at least one number.';
+        }
+        if (!preg_match('/[^A-Za-z0-9]/', $password)) {
+            $errors['password'][] = 'Password must contain at least one symbol.';
+        }
+
+        if (!empty($errors)) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        $validated = $request->only(['name', 'email', 'password', 'phone']);
 
         $user = User::create([
             'name' => $validated['name'],

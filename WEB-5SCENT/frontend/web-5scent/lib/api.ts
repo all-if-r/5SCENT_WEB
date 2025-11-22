@@ -45,7 +45,7 @@ api.interceptors.request.use(
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      config.withCredentials = true; // Enable credentials for authenticated requests
+      // Not using withCredentials since we're using token-based auth, not cookie-based
     }
     const fullUrl = `${config.baseURL}${config.url}`;
     console.log(`[API Request] ${config.method?.toUpperCase()} ${fullUrl}`);
