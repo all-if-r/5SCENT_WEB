@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Wishlist;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class WishlistController extends Controller
 {
@@ -18,16 +19,39 @@ class WishlistController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'product_id' => 'required|exists:product,product_id',
-        ]);
+        try {
+            $validated = $request->validate([
+                'product_id' => 'required|exists:product,product_id',
+            ]);
 
-        $wishlistItem = Wishlist::firstOrCreate([
-            'user_id' => $request->user()->user_id,
-            'product_id' => $validated['product_id'],
-        ]);
+            // Check if item already exists
+            $existingItem = Wishlist::where('user_id', $request->user()->user_id)
+                ->where('product_id', $validated['product_id'])
+                ->with('product.images')
+                ->first();
 
-        return response()->json($wishlistItem->load('product.images'), 201);
+            if ($existingItem) {
+                // Item already exists, return it
+                return response()->json($existingItem, 200);
+            }
+
+            // Create new wishlist item
+            $wishlistItem = Wishlist::create([
+                'user_id' => $request->user()->user_id,
+                'product_id' => $validated['product_id'],
+            ]);
+
+            // Load relationships
+            $wishlistItem->load('product.images');
+
+            return response()->json($wishlistItem, 201);
+        } catch (\Exception $e) {
+            \Log::error('Wishlist store error: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to add item to wishlist',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     public function destroy($id, Request $request)

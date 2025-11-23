@@ -1,18 +1,51 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ShoppingCartIcon, HeartIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import ProfilePopup from './ProfilePopup';
+import api from '@/lib/api';
 
 export default function Navigation() {
   const { user } = useAuth();
   const { items } = useCart();
   const [showProfile, setShowProfile] = useState(false);
+  const [wishlistCount, setWishlistCount] = useState(0);
 
   const cartItemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+
+  useEffect(() => {
+    if (user) {
+      fetchWishlistCount();
+    } else {
+      setWishlistCount(0);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const handleWishlistUpdate = () => {
+      if (user) {
+        fetchWishlistCount();
+      }
+    };
+
+    window.addEventListener('wishlist-updated', handleWishlistUpdate);
+    return () => window.removeEventListener('wishlist-updated', handleWishlistUpdate);
+  }, [user]);
+
+  const fetchWishlistCount = async () => {
+    try {
+      const response = await api.get('/wishlist');
+      const wishlistData = response.data.data || response.data;
+      const items = Array.isArray(wishlistData) ? wishlistData : [];
+      setWishlistCount(items.length);
+    } catch (error) {
+      // Wishlist fetch failed, set to 0
+      setWishlistCount(0);
+    }
+  };
 
   return (
     <>
@@ -51,9 +84,14 @@ export default function Navigation() {
                   {/* Wishlist Icon - Only show when logged in */}
                   <Link
                     href="/wishlist"
-                    className="p-2 text-gray-700 hover:text-primary-600 transition-colors"
+                    className="relative p-2 text-gray-700 hover:text-primary-600 transition-colors"
                   >
                     <HeartIcon className="w-6 h-6" />
+                    {wishlistCount > 0 && (
+                      <span className="absolute top-0 right-0 bg-primary-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                        {wishlistCount}
+                      </span>
+                    )}
                   </Link>
 
                   {/* Cart Icon - Only show when logged in */}

@@ -65,14 +65,14 @@ export default function Hero() {
   };
 
   return (
-    <section ref={heroRef} className="relative h-[700px] w-full overflow-hidden bg-black mb-4">
+    <section ref={heroRef} className="relative h-[700px] w-full overflow-hidden bg-black mb-4 z-0">
       {/* Carousel Images - Smooth crossfade */}
       <div className="relative w-full h-full">
         {images.map((image, index) => (
           <div
             key={index}
             className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
-              index === currentIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'
+              index === currentIndex ? 'opacity-100 z-0' : 'opacity-0 z-0'
             }`}
           >
             <Image

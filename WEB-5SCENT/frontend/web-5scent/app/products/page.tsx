@@ -7,12 +7,11 @@ import Footer from '@/components/Footer';
 import api from '@/lib/api';
 import Image from 'next/image';
 import Link from 'next/link';
-import { MagnifyingGlassIcon, FunnelIcon, HeartIcon as HeartOutlineIcon, HeartIcon as HeartSolidIcon, ShoppingCartIcon, StarIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, FunnelIcon, HeartIcon as HeartOutlineIcon, ShoppingCartIcon, StarIcon } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolid } from '@heroicons/react/24/solid';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/contexts/ToastContext';
-import ScrollAnimated from '@/components/ScrollAnimated';
 
 interface Product {
   product_id: number;
@@ -48,6 +47,7 @@ function ProductsContent() {
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 0]);
   const [maxPrice, setMaxPrice] = useState(0);
   const [wishlistItems, setWishlistItems] = useState<number[]>([]);
+  const [wishlistMap, setWishlistMap] = useState<Map<number, number>>(new Map()); // product_id -> wishlist_id
 
   // Fetch all products
   useEffect(() => {
@@ -69,10 +69,14 @@ function ProductsContent() {
           try {
             const wishlistResponse = await api.get('/wishlist');
             const wishlistData = wishlistResponse.data.data || wishlistResponse.data;
-            const wishlistIds = Array.isArray(wishlistData)
-              ? wishlistData.map((item: any) => item.product_id)
-              : [];
-            setWishlistItems(wishlistIds);
+            const items = Array.isArray(wishlistData) ? wishlistData : [];
+            const productIds = items.map((item: any) => item.product_id);
+            const map = new Map<number, number>();
+            items.forEach((item: any) => {
+              map.set(item.product_id, item.wishlist_id);
+            });
+            setWishlistItems(productIds);
+            setWishlistMap(map);
           } catch (error) {
             // Wishlist fetch failed, continue without it
           }
@@ -145,13 +149,40 @@ function ProductsContent() {
     try {
       const isInWishlist = wishlistItems.includes(productId);
       if (isInWishlist) {
-        await api.delete(`/wishlist/${productId}`);
-        setWishlistItems(wishlistItems.filter((id) => id !== productId));
-        showToast('Removed from wishlist', 'success');
+        const wishlistId = wishlistMap.get(productId);
+        if (wishlistId) {
+          await api.delete(`/wishlist/${wishlistId}`);
+          setWishlistItems(wishlistItems.filter((id) => id !== productId));
+          const newMap = new Map(wishlistMap);
+          newMap.delete(productId);
+          setWishlistMap(newMap);
+          showToast('Removed from wishlist', 'success');
+          
+          // Refresh navigation wishlist count
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('wishlist-updated'));
+          }
+        }
       } else {
-        await api.post('/wishlist', { product_id: productId });
-        setWishlistItems([...wishlistItems, productId]);
-        showToast('Added to wishlist', 'success');
+        try {
+          const response = await api.post('/wishlist', { product_id: productId });
+          const newItem = response.data;
+          setWishlistItems([...wishlistItems, productId]);
+          const newMap = new Map(wishlistMap);
+          if (newItem && newItem.wishlist_id) {
+            newMap.set(productId, newItem.wishlist_id);
+          }
+          setWishlistMap(newMap);
+          showToast('Added to wishlist', 'success');
+          
+          // Refresh navigation wishlist count
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('wishlist-updated'));
+          }
+        } catch (error: any) {
+          console.error('Wishlist add error:', error);
+          throw error;
+        }
       }
     } catch (error: any) {
       showToast(error.response?.data?.message || 'Failed to update wishlist', 'error');
@@ -214,18 +245,15 @@ function ProductsContent() {
   return (
     <main className="min-h-screen bg-white">
       <Navigation />
-      <div className="container mx-auto px-4 lg:px-6 xl:px-8 py-8 max-w-[1400px]">
+      <div className="container mx-auto px-4 py-8">
         {/* Page Header */}
-        <ScrollAnimated direction="fade" delay={0.1}>
-          <div className="mb-8">
-            <h1 className="text-4xl font-header font-bold text-gray-900 mb-2">Our Collection</h1>
-            <div className="h-1 w-20 bg-black"></div>
-          </div>
-        </ScrollAnimated>
+        <div className="mb-8">
+          <h1 className="text-4xl font-header font-bold text-gray-900 mb-2">Our Collection</h1>
+          <div className="h-1 w-20 bg-black"></div>
+        </div>
 
         {/* Search Bar */}
-        <ScrollAnimated direction="fade" delay={0.2}>
-          <form onSubmit={handleSearch} className="mb-8">
+        <form onSubmit={handleSearch} className="mb-8">
           <div className="relative max-w-2xl">
             <MagnifyingGlassIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
@@ -237,13 +265,11 @@ function ProductsContent() {
             />
           </div>
         </form>
-        </ScrollAnimated>
 
-        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+        <div className="flex flex-col lg:flex-row gap-6">
           {/* Filters Panel */}
-          <ScrollAnimated direction="right" delay={0.3}>
-            <div className="lg:w-64 xl:w-72 flex-shrink-0">
-              <div className="bg-white rounded-xl shadow-md p-6 sticky top-24">
+          <div className="lg:w-64 flex-shrink-0">
+            <div className="bg-white rounded-xl shadow-md p-6 sticky top-24">
               <div className="flex items-center gap-2 mb-6">
                 <FunnelIcon className="w-5 h-5 text-gray-700" />
                 <h2 className="text-lg font-semibold text-gray-900 font-header">Filters</h2>
@@ -294,12 +320,10 @@ function ProductsContent() {
                 Reset Filters
               </button>
             </div>
-            </div>
-          </ScrollAnimated>
+          </div>
 
           {/* Products Section */}
-          <ScrollAnimated direction="left" delay={0.4}>
-            <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 pr-2">
             {/* Products Info Line */}
             <p className="text-sm text-gray-600 mb-6 font-body">
               Showing {products.length} of {allProducts.length} products
@@ -307,7 +331,7 @@ function ProductsContent() {
 
             {/* Product Grid */}
             {loading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[...Array(6)].map((_, i) => (
                   <div key={i} className="animate-pulse">
                     <div className="bg-gray-200 h-64 rounded-lg mb-4"></div>
@@ -321,11 +345,11 @@ function ProductsContent() {
                 <p className="text-gray-500 text-lg">No products found</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {products.map((product) => {
                   const imageUrl = get30mlImage(product);
                   const isInWishlist = wishlistItems.includes(product.product_id);
-                  const averageRating = product.ratings_avg_stars || 0;
+                  const averageRating = Number(product.ratings_avg_stars) || 0;
                   const ratingCount = product.ratings_count || 0;
 
                   return (
@@ -342,8 +366,12 @@ function ProductsContent() {
 
                       {/* Wishlist Icon */}
                       <button
-                        onClick={() => handleWishlistToggle(product.product_id)}
-                        className="absolute top-4 right-4 z-10 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-shadow"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleWishlistToggle(product.product_id);
+                        }}
+                        className="absolute top-4 right-4 z-10 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-shadow cursor-pointer"
                       >
                         {isInWishlist ? (
                           <HeartSolid className="w-5 h-5 text-red-500" />
@@ -410,8 +438,7 @@ function ProductsContent() {
                 })}
               </div>
             )}
-            </div>
-          </ScrollAnimated>
+          </div>
         </div>
       </div>
       <Footer />
@@ -428,7 +455,7 @@ export default function ProductsPage() {
           <div className="container mx-auto px-4 py-8">
             <div className="animate-pulse">
               <div className="h-8 bg-gray-200 rounded w-1/3 mb-8"></div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[...Array(6)].map((_, i) => (
                   <div key={i} className="bg-gray-200 h-64 rounded-lg"></div>
                 ))}
