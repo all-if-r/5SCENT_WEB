@@ -150,13 +150,13 @@ export default function ProductGrid({ bestSeller, category, search }: ProductGri
             transition={{ delay: index * 0.1 }}
           >
             <Link href={`/products/${product.product_id}`}>
-              <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow cursor-pointer">
-                <div className="relative h-64 bg-gray-100">
+              <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:scale-105">
+                <div className="relative h-64 bg-gray-100 overflow-hidden">
                   <Image
                     src={imageUrl}
                     alt={product.name}
                     fill
-                    className="object-cover"
+                    className="object-cover transition-transform duration-300 hover:scale-110"
                     unoptimized
                   />
                 </div>

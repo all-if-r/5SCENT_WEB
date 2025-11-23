@@ -16,7 +16,7 @@ export default function SearchBar() {
   };
 
   return (
-    <section className="bg-white py-6 -mt-12 relative z-10">
+    <section className="bg-white py-8 -mt-20 relative z-20">
       <div className="container mx-auto px-4">
         <form onSubmit={handleSearch} className="max-w-4xl mx-auto">
           {/* Search bar - Full width with rounded edges */}

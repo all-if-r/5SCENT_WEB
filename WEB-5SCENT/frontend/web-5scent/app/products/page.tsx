@@ -12,6 +12,7 @@ import { HeartIcon as HeartSolid } from '@heroicons/react/24/solid';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/contexts/ToastContext';
+import ScrollAnimated from '@/components/ScrollAnimated';
 
 interface Product {
   product_id: number;
@@ -213,15 +214,18 @@ function ProductsContent() {
   return (
     <main className="min-h-screen bg-white">
       <Navigation />
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 lg:px-6 xl:px-8 py-8 max-w-[1400px]">
         {/* Page Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-header font-bold text-gray-900 mb-2">Our Collection</h1>
-          <div className="h-1 w-20 bg-black"></div>
-        </div>
+        <ScrollAnimated direction="fade" delay={0.1}>
+          <div className="mb-8">
+            <h1 className="text-4xl font-header font-bold text-gray-900 mb-2">Our Collection</h1>
+            <div className="h-1 w-20 bg-black"></div>
+          </div>
+        </ScrollAnimated>
 
         {/* Search Bar */}
-        <form onSubmit={handleSearch} className="mb-8">
+        <ScrollAnimated direction="fade" delay={0.2}>
+          <form onSubmit={handleSearch} className="mb-8">
           <div className="relative max-w-2xl">
             <MagnifyingGlassIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
@@ -233,11 +237,13 @@ function ProductsContent() {
             />
           </div>
         </form>
+        </ScrollAnimated>
 
-        <div className="flex flex-col lg:flex-row gap-8">
+        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
           {/* Filters Panel */}
-          <div className="lg:w-64 flex-shrink-0">
-            <div className="bg-white rounded-xl shadow-md p-6 sticky top-24">
+          <ScrollAnimated direction="right" delay={0.3}>
+            <div className="lg:w-64 xl:w-72 flex-shrink-0">
+              <div className="bg-white rounded-xl shadow-md p-6 sticky top-24">
               <div className="flex items-center gap-2 mb-6">
                 <FunnelIcon className="w-5 h-5 text-gray-700" />
                 <h2 className="text-lg font-semibold text-gray-900 font-header">Filters</h2>
@@ -288,10 +294,12 @@ function ProductsContent() {
                 Reset Filters
               </button>
             </div>
-          </div>
+            </div>
+          </ScrollAnimated>
 
           {/* Products Section */}
-          <div className="flex-1">
+          <ScrollAnimated direction="left" delay={0.4}>
+            <div className="flex-1 min-w-0">
             {/* Products Info Line */}
             <p className="text-sm text-gray-600 mb-6 font-body">
               Showing {products.length} of {allProducts.length} products
@@ -313,7 +321,7 @@ function ProductsContent() {
                 <p className="text-gray-500 text-lg">No products found</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
                 {products.map((product) => {
                   const imageUrl = get30mlImage(product);
                   const isInWishlist = wishlistItems.includes(product.product_id);
@@ -323,7 +331,7 @@ function ProductsContent() {
                   return (
                     <div
                       key={product.product_id}
-                      className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow relative"
+                      className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:scale-105 relative group"
                     >
                       {/* Category Badge */}
                       <div className="absolute top-4 left-4 z-10">
@@ -346,12 +354,12 @@ function ProductsContent() {
 
                       {/* Product Image */}
                       <Link href={`/products/${product.product_id}`}>
-                        <div className="relative h-64 bg-gray-100 cursor-pointer">
+                        <div className="relative h-64 bg-gray-100 cursor-pointer overflow-hidden">
                           <Image
                             src={imageUrl}
                             alt={product.name}
                             fill
-                            className="object-cover"
+                            className="object-cover transition-transform duration-300 group-hover:scale-110"
                             unoptimized
                           />
                         </div>
@@ -402,7 +410,8 @@ function ProductsContent() {
                 })}
               </div>
             )}
-          </div>
+            </div>
+          </ScrollAnimated>
         </div>
       </div>
       <Footer />

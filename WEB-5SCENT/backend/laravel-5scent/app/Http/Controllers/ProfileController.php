@@ -20,8 +20,8 @@ class ProfileController extends Controller
             'city' => 'nullable|string|max:255',
             'province' => 'nullable|string|max:255',
             'postal_code' => 'nullable|string|max:20',
-            'profile_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'profile_pic_path' => 'nullable|string|max:255',
+            'profile_pic' => 'nullable|image|mimes:jpeg,png,jpg',
+            'profile_pic_path' => 'nullable|string|max:500',
         ];
         
         // Only validate phone regex if phone is provided and not empty
@@ -31,9 +31,22 @@ class ProfileController extends Controller
             $rules['phone'] = 'nullable|string|max:20';
         }
 
-        $validated = $request->validate($rules, [
+        $messages = [
             'phone.regex' => 'Phone number must start with +62 and have at least 8 digits after the country code.',
-        ]);
+            'profile_pic.image' => 'The profile picture must be an image file.',
+            'profile_pic.mimes' => 'Only JPG and PNG image files are allowed for profile photos.',
+            'profile_pic_path.string' => 'The profile picture path must be a valid string.',
+            'profile_pic_path.max' => 'The profile picture path is too long.',
+        ];
+
+        try {
+            $validated = $request->validate($rules, $messages);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+        }
 
         $updateData = [
             'name' => $validated['name'],
@@ -53,15 +66,45 @@ class ProfileController extends Controller
             }
         }
 
+        // Handle profile picture upload
         if ($request->hasFile('profile_pic')) {
-            if ($user->profile_pic) {
+            // Validate file type
+            $file = $request->file('profile_pic');
+            $mimeType = $file->getMimeType();
+            if (!in_array($mimeType, ['image/jpeg', 'image/jpg', 'image/png'])) {
+                return response()->json([
+                    'message' => 'Only JPG and PNG image files are allowed for profile photos.',
+                    'errors' => ['profile_pic' => ['Only JPG and PNG image files are allowed for profile photos.']]
+                ], 422);
+            }
+            
+            // Delete old profile picture if exists
+            if ($user->profile_pic && !str_contains($user->profile_pic, 'profile_pics')) {
+                // Only delete if stored in Laravel storage, not in Next.js public folder
                 Storage::disk('public')->delete($user->profile_pic);
             }
-            $path = $request->file('profile_pic')->store('profiles', 'public');
+            
+            $path = $file->store('profiles', 'public');
             $updateData['profile_pic'] = $path;
-        } elseif ($request->has('profile_pic_path')) {
+        } elseif ($request->has('profile_pic_path') && $request->filled('profile_pic_path')) {
             // Use path from Next.js upload (saved to public/profile_pics)
-            $updateData['profile_pic'] = $validated['profile_pic_path'];
+            // Validate the path format
+            $path = $validated['profile_pic_path'];
+            if (!str_starts_with($path, 'profile_pics/')) {
+                return response()->json([
+                    'message' => 'Invalid profile picture path format.',
+                    'errors' => ['profile_pic_path' => ['Invalid profile picture path format.']]
+                ], 422);
+            }
+            
+            // Extract filename to check if old file should be deleted
+            $filename = basename($path);
+            if ($user->profile_pic && str_contains($user->profile_pic, 'profile_pics')) {
+                $oldFilename = basename($user->profile_pic);
+                // Old file deletion is handled by Next.js upload route
+            }
+            
+            $updateData['profile_pic'] = $path;
         }
 
         $user->update($updateData);

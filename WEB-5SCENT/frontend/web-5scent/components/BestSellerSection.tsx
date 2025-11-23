@@ -139,7 +139,7 @@ export default function BestSellerSection() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className="bg-white rounded-lg shadow-md overflow-hidden relative"
+                className="bg-white rounded-lg shadow-md overflow-hidden relative hover:shadow-xl transition-all duration-300 transform hover:scale-105 group"
               >
                 {/* Category Label */}
                 <div className="absolute top-4 left-4 z-10">
@@ -169,12 +169,12 @@ export default function BestSellerSection() {
 
                 {/* Product Image */}
                 <Link href={`/products/${product.product_id}`}>
-                  <div className="relative h-64 bg-gray-100 cursor-pointer">
+                  <div className="relative h-64 bg-gray-100 cursor-pointer overflow-hidden">
                     <Image
                       src={imageUrl}
                       alt={product.name}
                       fill
-                      className="object-cover"
+                      className="object-cover transition-transform duration-300 group-hover:scale-110"
                       unoptimized
                     />
                   </div>

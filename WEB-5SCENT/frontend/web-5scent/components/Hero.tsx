@@ -65,7 +65,7 @@ export default function Hero() {
   };
 
   return (
-    <section ref={heroRef} className="relative h-[700px] w-full overflow-hidden bg-black">
+    <section ref={heroRef} className="relative h-[700px] w-full overflow-hidden bg-black mb-4">
       {/* Carousel Images - Smooth crossfade */}
       <div className="relative w-full h-full">
         {images.map((image, index) => (
