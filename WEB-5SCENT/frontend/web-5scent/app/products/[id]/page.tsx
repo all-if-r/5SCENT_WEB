@@ -7,14 +7,6 @@ import Link from 'next/link';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import api from '@/lib/api';
-// Format date as YYYY-MM-DD
-function formatReviewDate(date: string | Date): string {
-  const d = new Date(date);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -50,6 +42,15 @@ interface Product {
 // Format price as Rp200.000 (no space after Rp)
 function formatPrice(amount: number): string {
   return `Rp${amount.toLocaleString('id-ID')}`;
+}
+
+// Format date as YYYY-MM-DD
+function formatReviewDate(date: string | Date): string {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 export default function ProductDetailPage() {
@@ -96,14 +97,21 @@ export default function ProductDetailPage() {
     }
   };
 
+  const [wishlistId, setWishlistId] = useState<number | null>(null);
+
   const checkWishlist = async () => {
     try {
       const response = await api.get('/wishlist');
       const wishlistData = response.data.data || response.data;
-      const wishlistIds = Array.isArray(wishlistData)
-        ? wishlistData.map((item: any) => item.product_id)
-        : [];
-      setIsInWishlist(wishlistIds.includes(parseInt(productId)));
+      const items = Array.isArray(wishlistData) ? wishlistData : [];
+      const item = items.find((item: any) => item.product_id === parseInt(productId));
+      if (item) {
+        setIsInWishlist(true);
+        setWishlistId(item.wishlist_id);
+      } else {
+        setIsInWishlist(false);
+        setWishlistId(null);
+      }
     } catch (error) {
       // Wishlist check failed, continue without it
     }
@@ -118,13 +126,15 @@ export default function ProductDetailPage() {
 
     setWishlistLoading(true);
     try {
-      if (isInWishlist) {
-        await api.delete(`/wishlist/${productId}`);
+      if (isInWishlist && wishlistId) {
+        await api.delete(`/wishlist/${wishlistId}`);
         setIsInWishlist(false);
+        setWishlistId(null);
         showToast('Removed from wishlist', 'success');
       } else {
-        await api.post('/wishlist', { product_id: parseInt(productId) });
+        const response = await api.post('/wishlist', { product_id: parseInt(productId) });
         setIsInWishlist(true);
+        setWishlistId(response.data.wishlist_id);
         showToast('Added to wishlist', 'success');
       }
     } catch (error: any) {
