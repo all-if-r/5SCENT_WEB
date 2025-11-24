@@ -67,6 +67,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     try {
       await api.post('/cart', { product_id: productId, size, quantity });
       await refreshCart();
+      // Dispatch cart update event
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('cart-updated'));
+      }
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Failed to add to cart');
     }
@@ -76,6 +80,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     try {
       await api.put(`/cart/${itemId}`, { quantity });
       await refreshCart();
+      // Dispatch cart update event
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('cart-updated'));
+      }
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Failed to update cart');
     }
@@ -85,6 +93,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     try {
       await api.delete(`/cart/${itemId}`);
       await refreshCart();
+      // Dispatch cart update event
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('cart-updated'));
+      }
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Failed to remove from cart');
     }

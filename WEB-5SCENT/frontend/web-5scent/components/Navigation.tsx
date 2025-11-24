@@ -31,8 +31,16 @@ export default function Navigation() {
       }
     };
 
+    const handleCartUpdate = () => {
+      // Cart count is automatically updated via CartContext
+    };
+
     window.addEventListener('wishlist-updated', handleWishlistUpdate);
-    return () => window.removeEventListener('wishlist-updated', handleWishlistUpdate);
+    window.addEventListener('cart-updated', handleCartUpdate);
+    return () => {
+      window.removeEventListener('wishlist-updated', handleWishlistUpdate);
+      window.removeEventListener('cart-updated', handleCartUpdate);
+    };
   }, [user]);
 
   const fetchWishlistCount = async () => {
@@ -85,10 +93,11 @@ export default function Navigation() {
                   <Link
                     href="/wishlist"
                     className="relative p-2 text-gray-700 hover:text-primary-600 transition-colors"
+                    id="wishlist-icon"
                   >
                     <HeartIcon className="w-6 h-6" />
                     {wishlistCount > 0 && (
-                      <span className="absolute top-0 right-0 bg-primary-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                      <span className="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold">
                         {wishlistCount}
                       </span>
                     )}
@@ -98,10 +107,11 @@ export default function Navigation() {
                   <Link
                     href="/cart"
                     className="relative p-2 text-gray-700 hover:text-primary-600 transition-colors"
+                    id="cart-icon"
                   >
                     <ShoppingCartIcon className="w-6 h-6" />
                     {cartItemCount > 0 && (
-                      <span className="absolute top-0 right-0 bg-primary-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                      <span className="absolute top-0 right-0 bg-black text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold">
                         {cartItemCount}
                       </span>
                     )}

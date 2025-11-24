@@ -12,6 +12,8 @@ import { HeartIcon as HeartSolid } from '@heroicons/react/24/solid';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/contexts/ToastContext';
+import SizeSelectionModal from '@/components/SizeSelectionModal';
+import { animateToIcon } from '@/lib/animations';
 
 interface Product {
   product_id: number;
@@ -48,6 +50,8 @@ function ProductsContent() {
   const [maxPrice, setMaxPrice] = useState(0);
   const [wishlistItems, setWishlistItems] = useState<number[]>([]);
   const [wishlistMap, setWishlistMap] = useState<Map<number, number>>(new Map()); // product_id -> wishlist_id
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Fetch all products
   useEffect(() => {
@@ -139,7 +143,7 @@ function ProductsContent() {
     router.push('/products');
   };
 
-  const handleWishlistToggle = async (productId: number) => {
+  const handleWishlistToggle = async (productId: number, productImageElement?: HTMLElement) => {
     if (!user) {
       showToast('Please login to add items to wishlist', 'info');
       router.push('/login');
@@ -175,6 +179,11 @@ function ProductsContent() {
           setWishlistMap(newMap);
           showToast('Added to wishlist', 'success');
           
+          // Trigger animation if product image is available
+          if (productImageElement) {
+            animateToIcon(productImageElement, 'wishlist-icon');
+          }
+          
           // Refresh navigation wishlist count
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new Event('wishlist-updated'));
@@ -189,19 +198,18 @@ function ProductsContent() {
     }
   };
 
-  const handleAddToCart = async (productId: number) => {
+  const handleAddToCartClick = (product: Product) => {
     if (!user) {
       showToast('Please login to add items to cart', 'info');
       router.push('/login');
       return;
     }
+    setSelectedProduct(product);
+    setIsModalOpen(true);
+  };
 
-    try {
-      await addToCart(productId, '30ml', 1);
-      showToast('Added to cart successfully', 'success');
-    } catch (error: any) {
-      showToast(error.message || 'Failed to add to cart', 'error');
-    }
+  const handleAddToCart = async (productId: number, size: '30ml' | '50ml', quantity: number) => {
+    await addToCart(productId, size, quantity);
   };
 
   // Get 30ml image for product
@@ -369,7 +377,8 @@ function ProductsContent() {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          handleWishlistToggle(product.product_id);
+                          const imageElement = e.currentTarget.closest('.group')?.querySelector('img') as HTMLElement;
+                          handleWishlistToggle(product.product_id, imageElement || undefined);
                         }}
                         className="absolute top-4 right-4 z-10 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-shadow cursor-pointer"
                       >
@@ -426,7 +435,7 @@ function ProductsContent() {
 
                         {/* Add to Cart Button */}
                         <button
-                          onClick={() => handleAddToCart(product.product_id)}
+                          onClick={() => handleAddToCartClick(product)}
                           className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-black text-white rounded-full font-semibold hover:bg-gray-800 transition-colors"
                         >
                           <ShoppingCartIcon className="w-5 h-5" />
@@ -441,6 +450,16 @@ function ProductsContent() {
           </div>
         </div>
       </div>
+      <SizeSelectionModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedProduct(null);
+        }}
+        product={selectedProduct}
+        onAddToCart={handleAddToCart}
+        targetIcon="cart"
+      />
       <Footer />
     </main>
   );

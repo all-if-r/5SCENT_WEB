@@ -68,7 +68,10 @@ export default function CartPage() {
     <main className="min-h-screen bg-white">
       <Navigation />
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-header font-bold text-gray-900 mb-8">Shopping Cart</h1>
+        <div className="mb-8">
+          <h1 className="text-4xl font-header font-bold text-gray-900 mb-4">Shopping Cart</h1>
+          <div className="h-1.5 w-20 bg-black rounded-full"></div>
+        </div>
 
         {items.length === 0 ? (
           <div className="text-center py-12">

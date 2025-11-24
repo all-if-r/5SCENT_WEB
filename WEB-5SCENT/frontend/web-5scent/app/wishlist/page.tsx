@@ -12,6 +12,7 @@ import { HeartIcon as HeartSolid } from '@heroicons/react/24/solid';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/contexts/ToastContext';
+import SizeSelectionModal from '@/components/SizeSelectionModal';
 
 interface WishlistItem {
   wishlist_id: number;
@@ -44,6 +45,8 @@ export default function WishlistPage() {
 
   const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedProduct, setSelectedProduct] = useState<WishlistItem['product'] | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -81,13 +84,13 @@ export default function WishlistPage() {
     }
   };
 
-  const handleAddToCart = async (productId: number) => {
-    try {
-      await addToCart(productId, '30ml', 1);
-      showToast('Added to cart successfully', 'success');
-    } catch (error: any) {
-      showToast(error.message || 'Failed to add to cart', 'error');
-    }
+  const handleAddToCartClick = (product: WishlistItem['product']) => {
+    setSelectedProduct(product);
+    setIsModalOpen(true);
+  };
+
+  const handleAddToCart = async (productId: number, size: '30ml' | '50ml', quantity: number) => {
+    await addToCart(productId, size, quantity);
   };
 
   // Get 30ml image for product
@@ -156,8 +159,8 @@ export default function WishlistPage() {
       <div className="container mx-auto px-4 py-8">
         {/* Page Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-header font-bold text-gray-900 mb-2">My Wishlist</h1>
-          <div className="h-1 w-20 bg-black"></div>
+          <h1 className="text-4xl font-header font-bold text-gray-900 mb-4">My Wishlist</h1>
+          <div className="h-1.5 w-20 bg-black rounded-full"></div>
         </div>
 
         {/* Empty State */}
@@ -260,7 +263,7 @@ export default function WishlistPage() {
 
                       {/* Add to Cart Button */}
                       <button
-                        onClick={() => handleAddToCart(product.product_id)}
+                        onClick={() => handleAddToCartClick(product)}
                         className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-black text-white rounded-full font-semibold hover:bg-gray-800 transition-colors"
                       >
                         <ShoppingCartIcon className="w-5 h-5" />
@@ -274,6 +277,24 @@ export default function WishlistPage() {
           </>
         )}
       </div>
+      <SizeSelectionModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedProduct(null);
+        }}
+        product={selectedProduct ? {
+          product_id: selectedProduct.product_id,
+          name: selectedProduct.name,
+          price_30ml: selectedProduct.price_30ml,
+          price_50ml: selectedProduct.price_50ml,
+          stock_30ml: selectedProduct.stock_30ml,
+          stock_50ml: selectedProduct.stock_50ml,
+          images: selectedProduct.images,
+        } : null}
+        onAddToCart={handleAddToCart}
+        targetIcon="cart"
+      />
       <Footer />
     </main>
   );

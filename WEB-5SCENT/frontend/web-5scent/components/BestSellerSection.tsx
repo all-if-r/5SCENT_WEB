@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/contexts/ToastContext';
 import { motion } from 'framer-motion';
+import SizeSelectionModal from '@/components/SizeSelectionModal';
 
 interface Product {
   product_id: number;
@@ -34,6 +35,8 @@ function formatPrice(amount: number): string {
 export default function BestSellerSection() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const { user } = useAuth();
   const { addToCart } = useCart();
   const { showToast } = useToast();
@@ -61,18 +64,17 @@ export default function BestSellerSection() {
     fetchBestSellers();
   }, []);
 
-  const handleAddToCart = async (product: Product) => {
+  const handleAddToCartClick = (product: Product) => {
     if (!user) {
       showToast('Please login to add items to cart', 'info');
       return;
     }
+    setSelectedProduct(product);
+    setIsModalOpen(true);
+  };
 
-    try {
-      await addToCart(product.product_id, '30ml', 1);
-      showToast('Added to cart successfully', 'success');
-    } catch (error: any) {
-      showToast(error.message || 'Failed to add to cart', 'error');
-    }
+  const handleAddToCart = async (productId: number, size: '30ml' | '50ml', quantity: number) => {
+    await addToCart(productId, size, quantity);
   };
 
   if (loading) {
@@ -215,7 +217,7 @@ export default function BestSellerSection() {
 
                   {/* Add to Cart Button - Pill shape (rounded-full) */}
                   <button
-                    onClick={() => handleAddToCart(product)}
+                    onClick={() => handleAddToCartClick(product)}
                     className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-black text-white rounded-full font-semibold hover:bg-gray-800 transition-colors"
                   >
                     <ShoppingCartIcon className="w-5 h-5" />
@@ -237,6 +239,16 @@ export default function BestSellerSection() {
           </Link>
         </div>
       </div>
+      <SizeSelectionModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedProduct(null);
+        }}
+        product={selectedProduct}
+        onAddToCart={handleAddToCart}
+        targetIcon="cart"
+      />
     </section>
   );
 }

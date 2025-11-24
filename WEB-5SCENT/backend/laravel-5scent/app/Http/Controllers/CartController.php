@@ -10,91 +10,215 @@ class CartController extends Controller
 {
     public function index(Request $request)
     {
-        $cartItems = Cart::with('product.images')
-            ->where('user_id', $request->user()->user_id)
-            ->get();
+        try {
+            $user = $request->user();
+            if (!$user) {
+                return response()->json([
+                    'message' => 'Unauthorized'
+                ], 401);
+            }
 
-        $total = $cartItems->sum(function($item) {
-            return $item->total;
-        });
+            $cartItems = Cart::with(['product' => function($query) {
+                $query->with('images');
+            }])
+                ->where('user_id', $user->user_id)
+                ->get()
+                ->map(function($item) {
+                    // Ensure product relationship is loaded, if not, set to null
+                    if (!$item->product) {
+                        return $item;
+                    }
+                    return $item;
+                });
 
-        return response()->json([
-            'items' => $cartItems,
-            'total' => $total,
-        ]);
+            $total = $cartItems->sum(function($item) {
+                try {
+                    if ($item->product) {
+                        return $item->total;
+                    }
+                } catch (\Exception $e) {
+                    \Log::warning('Error calculating cart item total: ' . $e->getMessage());
+                }
+                return 0;
+            });
+
+            return response()->json([
+                'items' => $cartItems,
+                'total' => $total,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Cart index error: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'message' => 'Failed to fetch cart',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'product_id' => 'required|exists:product,product_id',
-            'size' => 'required|in:30ml,50ml',
-            'quantity' => 'required|integer|min:1',
-        ]);
+        try {
+            $user = $request->user();
+            if (!$user) {
+                return response()->json([
+                    'message' => 'Unauthorized'
+                ], 401);
+            }
 
-        $product = Product::findOrFail($validated['product_id']);
-        $stockField = $validated['size'] === '30ml' ? 'stock_30ml' : 'stock_50ml';
+            $validated = $request->validate([
+                'product_id' => 'required|exists:product,product_id',
+                'size' => 'required|in:30ml,50ml',
+                'quantity' => 'required|integer|min:1',
+            ]);
 
-        if ($product->$stockField < $validated['quantity']) {
-            return response()->json([
-                'message' => 'Insufficient stock'
-            ], 400);
-        }
+            $product = Product::find($validated['product_id']);
+            if (!$product) {
+                return response()->json([
+                    'message' => 'Product not found'
+                ], 404);
+            }
 
-        $cartItem = Cart::where('user_id', $request->user()->user_id)
-            ->where('product_id', $validated['product_id'])
-            ->where('size', $validated['size'])
-            ->first();
+            $stockField = $validated['size'] === '30ml' ? 'stock_30ml' : 'stock_50ml';
 
-        if ($cartItem) {
-            $newQuantity = $cartItem->quantity + $validated['quantity'];
-            if ($product->$stockField < $newQuantity) {
+            if ($product->$stockField < $validated['quantity']) {
                 return response()->json([
                     'message' => 'Insufficient stock'
                 ], 400);
             }
-            $cartItem->update(['quantity' => $newQuantity]);
-        } else {
-            $cartItem = Cart::create([
-                'user_id' => $request->user()->user_id,
-                'product_id' => $validated['product_id'],
-                'size' => $validated['size'],
-                'quantity' => $validated['quantity'],
-            ]);
-        }
 
-        return response()->json($cartItem->load('product.images'), 201);
+            $cartItem = Cart::where('user_id', $user->user_id)
+                ->where('product_id', $validated['product_id'])
+                ->where('size', $validated['size'])
+                ->first();
+
+            if ($cartItem) {
+                $newQuantity = $cartItem->quantity + $validated['quantity'];
+                if ($product->$stockField < $newQuantity) {
+                    return response()->json([
+                        'message' => 'Insufficient stock'
+                    ], 400);
+                }
+                $cartItem->update(['quantity' => $newQuantity]);
+                $cartItem->load(['product' => function($query) {
+                    $query->with('images');
+                }]);
+            } else {
+                $cartItem = Cart::create([
+                    'user_id' => $user->user_id,
+                    'product_id' => $validated['product_id'],
+                    'size' => $validated['size'],
+                    'quantity' => $validated['quantity'],
+                ]);
+                $cartItem->load(['product' => function($query) {
+                    $query->with('images');
+                }]);
+            }
+
+            return response()->json($cartItem, 201);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            \Log::error('Cart store error: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'message' => 'Failed to add item to cart',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     public function update(Request $request, $id)
     {
-        $cartItem = Cart::where('user_id', $request->user()->user_id)
-            ->findOrFail($id);
+        try {
+            $user = $request->user();
+            if (!$user) {
+                return response()->json([
+                    'message' => 'Unauthorized'
+                ], 401);
+            }
 
-        $validated = $request->validate([
-            'quantity' => 'required|integer|min:1',
-        ]);
+            $cartItem = Cart::where('user_id', $user->user_id)
+                ->find($id);
 
-        $product = $cartItem->product;
-        $stockField = $cartItem->size === '30ml' ? 'stock_30ml' : 'stock_50ml';
+            if (!$cartItem) {
+                return response()->json([
+                    'message' => 'Cart item not found'
+                ], 404);
+            }
 
-        if ($product->$stockField < $validated['quantity']) {
+            $validated = $request->validate([
+                'quantity' => 'required|integer|min:1',
+            ]);
+
+            $product = $cartItem->product;
+            if (!$product) {
+                return response()->json([
+                    'message' => 'Product not found'
+                ], 404);
+            }
+
+            $stockField = $cartItem->size === '30ml' ? 'stock_30ml' : 'stock_50ml';
+
+            if ($product->$stockField < $validated['quantity']) {
+                return response()->json([
+                    'message' => 'Insufficient stock'
+                ], 400);
+            }
+
+            $cartItem->update($validated);
+            $cartItem->load(['product' => function($query) {
+                $query->with('images');
+            }]);
+
+            return response()->json($cartItem);
+        } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
-                'message' => 'Insufficient stock'
-            ], 400);
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            \Log::error('Cart update error: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'message' => 'Failed to update cart item',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        $cartItem->update($validated);
-
-        return response()->json($cartItem->load('product.images'));
     }
 
     public function destroy($id, Request $request)
     {
-        $cartItem = Cart::where('user_id', $request->user()->user_id)
-            ->findOrFail($id);
-        $cartItem->delete();
+        try {
+            $user = $request->user();
+            if (!$user) {
+                return response()->json([
+                    'message' => 'Unauthorized'
+                ], 401);
+            }
 
-        return response()->json(['message' => 'Item removed from cart']);
+            $cartItem = Cart::where('user_id', $user->user_id)
+                ->find($id);
+
+            if (!$cartItem) {
+                return response()->json([
+                    'message' => 'Cart item not found'
+                ], 404);
+            }
+
+            $cartItem->delete();
+
+            return response()->json(['message' => 'Item removed from cart']);
+        } catch (\Exception $e) {
+            \Log::error('Cart destroy error: ' . $e->getMessage());
+            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'message' => 'Failed to remove item from cart',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }
