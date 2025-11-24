@@ -11,10 +11,18 @@ class Wishlist extends Model
 
     protected $table = 'wishlist';
     protected $primaryKey = 'wishlist_id';
+    public $timestamps = true;
+    public $incrementing = true;
+    protected $keyType = 'int';
 
     protected $fillable = [
         'user_id',
         'product_id',
+    ];
+
+    protected $casts = [
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     public function user()

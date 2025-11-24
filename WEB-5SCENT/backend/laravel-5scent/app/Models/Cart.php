@@ -11,6 +11,9 @@ class Cart extends Model
 
     protected $table = 'cart';
     protected $primaryKey = 'cart_id';
+    public $timestamps = true;
+    public $incrementing = true;
+    protected $keyType = 'int';
 
     protected $fillable = [
         'user_id',
@@ -18,6 +21,13 @@ class Cart extends Model
         'size',
         'quantity',
     ];
+
+    protected $casts = [
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
+
+    protected $appends = ['price', 'total'];
 
     public function user()
     {
@@ -31,11 +41,23 @@ class Cart extends Model
 
     public function getPriceAttribute()
     {
-        return $this->size === '30ml' ? $this->product->price_30ml : $this->product->price_50ml;
+        if (!$this->product || !$this->relationLoaded('product')) {
+            return 0;
+        }
+        return $this->size === '30ml' 
+            ? (float)$this->product->price_30ml 
+            : (float)$this->product->price_50ml;
     }
 
     public function getTotalAttribute()
     {
-        return $this->price * $this->quantity;
+        if (!$this->product || !$this->relationLoaded('product')) {
+            return 0;
+        }
+        $price = $this->size === '30ml' 
+            ? (float)$this->product->price_30ml 
+            : (float)$this->product->price_50ml;
+        return $price * (int)$this->quantity;
     }
 }
+

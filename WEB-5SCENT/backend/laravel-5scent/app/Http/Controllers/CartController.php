@@ -14,7 +14,10 @@ class CartController extends Controller
             $user = $request->user();
             if (!$user) {
                 return response()->json([
-                    'message' => 'Unauthorized'
+                    'success' => false,
+                    'message' => 'Unauthorized',
+                    'items' => [],
+                    'total' => 0
                 ], 401);
             }
 
@@ -22,35 +25,46 @@ class CartController extends Controller
                 $query->with('images');
             }])
                 ->where('user_id', $user->user_id)
-                ->get()
-                ->map(function($item) {
-                    // Ensure product relationship is loaded, if not, set to null
-                    if (!$item->product) {
-                        return $item;
-                    }
-                    return $item;
-                });
+                ->get();
 
-            $total = $cartItems->sum(function($item) {
-                try {
-                    if ($item->product) {
-                        return $item->total;
-                    }
-                } catch (\Exception $e) {
-                    \Log::warning('Error calculating cart item total: ' . $e->getMessage());
-                }
-                return 0;
+            // Ensure all items are properly formatted with prices
+            $formattedItems = $cartItems->map(function($item) {
+                return [
+                    'cart_id' => $item->cart_id,
+                    'product_id' => $item->product_id,
+                    'size' => $item->size,
+                    'quantity' => $item->quantity,
+                    'price' => $item->price,
+                    'total' => $item->total,
+                    'product' => $item->product,
+                    'created_at' => $item->created_at,
+                    'updated_at' => $item->updated_at,
+                ];
+            });
+
+            $total = $formattedItems->sum(function($item) {
+                return $item['total'] ?? 0;
             });
 
             return response()->json([
-                'items' => $cartItems,
+                'success' => true,
+                'message' => 'Cart fetched successfully',
+                'items' => $formattedItems,
                 'total' => $total,
-            ]);
+            ], 200);
         } catch (\Exception $e) {
-            \Log::error('Cart index error: ' . $e->getMessage());
-            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            \Log::error('Cart index error', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'user_id' => $request->user()?->user_id ?? null,
+            ]);
+            
             return response()->json([
+                'success' => false,
                 'message' => 'Failed to fetch cart',
+                'items' => [],
+                'total' => 0,
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -62,7 +76,9 @@ class CartController extends Controller
             $user = $request->user();
             if (!$user) {
                 return response()->json([
-                    'message' => 'Unauthorized'
+                    'success' => false,
+                    'message' => 'Unauthorized',
+                    'data' => null
                 ], 401);
             }
 
@@ -75,7 +91,9 @@ class CartController extends Controller
             $product = Product::find($validated['product_id']);
             if (!$product) {
                 return response()->json([
-                    'message' => 'Product not found'
+                    'success' => false,
+                    'message' => 'Product not found',
+                    'data' => null
                 ], 404);
             }
 
@@ -83,7 +101,9 @@ class CartController extends Controller
 
             if ($product->$stockField < $validated['quantity']) {
                 return response()->json([
-                    'message' => 'Insufficient stock'
+                    'success' => false,
+                    'message' => 'Insufficient stock',
+                    'data' => null
                 ], 400);
             }
 
@@ -96,7 +116,9 @@ class CartController extends Controller
                 $newQuantity = $cartItem->quantity + $validated['quantity'];
                 if ($product->$stockField < $newQuantity) {
                     return response()->json([
-                        'message' => 'Insufficient stock'
+                        'success' => false,
+                        'message' => 'Insufficient stock',
+                        'data' => null
                     ], 400);
                 }
                 $cartItem->update(['quantity' => $newQuantity]);
@@ -115,17 +137,40 @@ class CartController extends Controller
                 }]);
             }
 
-            return response()->json($cartItem, 201);
+            return response()->json([
+                'success' => true,
+                'message' => 'Product added to cart',
+                'data' => [
+                    'cart_id' => $cartItem->cart_id,
+                    'product_id' => $cartItem->product_id,
+                    'size' => $cartItem->size,
+                    'quantity' => $cartItem->quantity,
+                    'price' => $cartItem->price,
+                    'total' => $cartItem->total,
+                    'product' => $cartItem->product,
+                    'created_at' => $cartItem->created_at,
+                    'updated_at' => $cartItem->updated_at,
+                ]
+            ], 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
+                'success' => false,
                 'message' => 'Validation failed',
-                'errors' => $e->errors()
+                'errors' => $e->errors(),
+                'data' => null
             ], 422);
         } catch (\Exception $e) {
-            \Log::error('Cart store error: ' . $e->getMessage());
-            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            \Log::error('Cart store error', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'user_id' => $request->user()?->user_id ?? null,
+            ]);
+            
             return response()->json([
+                'success' => false,
                 'message' => 'Failed to add item to cart',
+                'data' => null,
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -137,7 +182,9 @@ class CartController extends Controller
             $user = $request->user();
             if (!$user) {
                 return response()->json([
-                    'message' => 'Unauthorized'
+                    'success' => false,
+                    'message' => 'Unauthorized',
+                    'data' => null
                 ], 401);
             }
 
@@ -146,7 +193,9 @@ class CartController extends Controller
 
             if (!$cartItem) {
                 return response()->json([
-                    'message' => 'Cart item not found'
+                    'success' => false,
+                    'message' => 'Cart item not found',
+                    'data' => null
                 ], 404);
             }
 
@@ -157,7 +206,9 @@ class CartController extends Controller
             $product = $cartItem->product;
             if (!$product) {
                 return response()->json([
-                    'message' => 'Product not found'
+                    'success' => false,
+                    'message' => 'Product not found',
+                    'data' => null
                 ], 404);
             }
 
@@ -165,7 +216,9 @@ class CartController extends Controller
 
             if ($product->$stockField < $validated['quantity']) {
                 return response()->json([
-                    'message' => 'Insufficient stock'
+                    'success' => false,
+                    'message' => 'Insufficient stock',
+                    'data' => null
                 ], 400);
             }
 
@@ -174,17 +227,41 @@ class CartController extends Controller
                 $query->with('images');
             }]);
 
-            return response()->json($cartItem);
+            return response()->json([
+                'success' => true,
+                'message' => 'Cart item updated successfully',
+                'data' => [
+                    'cart_id' => $cartItem->cart_id,
+                    'product_id' => $cartItem->product_id,
+                    'size' => $cartItem->size,
+                    'quantity' => $cartItem->quantity,
+                    'price' => $cartItem->price,
+                    'total' => $cartItem->total,
+                    'product' => $cartItem->product,
+                    'created_at' => $cartItem->created_at,
+                    'updated_at' => $cartItem->updated_at,
+                ]
+            ], 200);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
+                'success' => false,
                 'message' => 'Validation failed',
-                'errors' => $e->errors()
+                'errors' => $e->errors(),
+                'data' => null
             ], 422);
         } catch (\Exception $e) {
-            \Log::error('Cart update error: ' . $e->getMessage());
-            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            \Log::error('Cart update error', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'user_id' => $request->user()?->user_id ?? null,
+                'cart_id' => $id
+            ]);
+            
             return response()->json([
+                'success' => false,
                 'message' => 'Failed to update cart item',
+                'data' => null,
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -196,7 +273,9 @@ class CartController extends Controller
             $user = $request->user();
             if (!$user) {
                 return response()->json([
-                    'message' => 'Unauthorized'
+                    'success' => false,
+                    'message' => 'Unauthorized',
+                    'data' => null
                 ], 401);
             }
 
@@ -205,18 +284,32 @@ class CartController extends Controller
 
             if (!$cartItem) {
                 return response()->json([
-                    'message' => 'Cart item not found'
+                    'success' => false,
+                    'message' => 'Cart item not found',
+                    'data' => null
                 ], 404);
             }
 
             $cartItem->delete();
 
-            return response()->json(['message' => 'Item removed from cart']);
-        } catch (\Exception $e) {
-            \Log::error('Cart destroy error: ' . $e->getMessage());
-            \Log::error('Stack trace: ' . $e->getTraceAsString());
             return response()->json([
+                'success' => true,
+                'message' => 'Item removed from cart',
+                'data' => null
+            ], 200);
+        } catch (\Exception $e) {
+            \Log::error('Cart destroy error', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'user_id' => $request->user()?->user_id ?? null,
+                'cart_id' => $id
+            ]);
+            
+            return response()->json([
+                'success' => false,
                 'message' => 'Failed to remove item from cart',
+                'data' => null,
                 'error' => $e->getMessage()
             ], 500);
         }

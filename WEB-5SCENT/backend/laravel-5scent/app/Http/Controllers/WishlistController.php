@@ -14,7 +14,9 @@ class WishlistController extends Controller
             $user = $request->user();
             if (!$user) {
                 return response()->json([
-                    'message' => 'Unauthorized'
+                    'success' => false,
+                    'message' => 'Unauthorized',
+                    'data' => []
                 ], 401);
             }
 
@@ -22,14 +24,27 @@ class WishlistController extends Controller
                 $query->with('images');
             }])
                 ->where('user_id', $user->user_id)
+                ->orderBy('created_at', 'desc')
                 ->get();
 
-            return response()->json($wishlistItems);
-        } catch (\Exception $e) {
-            \Log::error('Wishlist index error: ' . $e->getMessage());
-            \Log::error('Stack trace: ' . $e->getTraceAsString());
             return response()->json([
+                'success' => true,
+                'message' => 'Wishlist fetched successfully',
+                'data' => $wishlistItems,
+                'count' => $wishlistItems->count(),
+            ], 200);
+        } catch (\Exception $e) {
+            \Log::error('Wishlist index error', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'user_id' => $request->user()?->user_id ?? null,
+            ]);
+            
+            return response()->json([
+                'success' => false,
                 'message' => 'Failed to fetch wishlist',
+                'data' => [],
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -41,7 +56,9 @@ class WishlistController extends Controller
             $user = $request->user();
             if (!$user) {
                 return response()->json([
-                    'message' => 'Unauthorized'
+                    'success' => false,
+                    'message' => 'Unauthorized',
+                    'data' => null
                 ], 401);
             }
 
@@ -53,21 +70,28 @@ class WishlistController extends Controller
             $product = \App\Models\Product::find($validated['product_id']);
             if (!$product) {
                 return response()->json([
-                    'message' => 'Product not found'
+                    'success' => false,
+                    'message' => 'Product not found',
+                    'data' => null
                 ], 404);
             }
 
             // Check if item already exists
             $existingItem = Wishlist::where('user_id', $user->user_id)
                 ->where('product_id', $validated['product_id'])
-                ->with(['product' => function($query) {
-                    $query->with('images');
-                }])
                 ->first();
 
             if ($existingItem) {
-                // Item already exists, return it
-                return response()->json($existingItem, 200);
+                // Load with relationships before returning
+                $existingItem->load(['product' => function($query) {
+                    $query->with('images');
+                }]);
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Product already in wishlist',
+                    'data' => $existingItem,
+                ], 200);
             }
 
             // Create new wishlist item
@@ -81,17 +105,30 @@ class WishlistController extends Controller
                 $query->with('images');
             }]);
 
-            return response()->json($wishlistItem, 201);
+            return response()->json([
+                'success' => true,
+                'message' => 'Product added to wishlist',
+                'data' => $wishlistItem,
+            ], 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
+                'success' => false,
                 'message' => 'Validation failed',
-                'errors' => $e->errors()
+                'errors' => $e->errors(),
+                'data' => null
             ], 422);
         } catch (\Exception $e) {
-            \Log::error('Wishlist store error: ' . $e->getMessage());
-            \Log::error('Stack trace: ' . $e->getTraceAsString());
+            \Log::error('Wishlist store error', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'user_id' => $request->user()?->user_id ?? null,
+            ]);
+            
             return response()->json([
+                'success' => false,
                 'message' => 'Failed to add item to wishlist',
+                'data' => null,
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -103,7 +140,9 @@ class WishlistController extends Controller
             $user = $request->user();
             if (!$user) {
                 return response()->json([
-                    'message' => 'Unauthorized'
+                    'success' => false,
+                    'message' => 'Unauthorized',
+                    'data' => null
                 ], 401);
             }
 
@@ -112,18 +151,32 @@ class WishlistController extends Controller
 
             if (!$wishlistItem) {
                 return response()->json([
-                    'message' => 'Wishlist item not found'
+                    'success' => false,
+                    'message' => 'Wishlist item not found',
+                    'data' => null
                 ], 404);
             }
 
             $wishlistItem->delete();
 
-            return response()->json(['message' => 'Item removed from wishlist']);
-        } catch (\Exception $e) {
-            \Log::error('Wishlist destroy error: ' . $e->getMessage());
-            \Log::error('Stack trace: ' . $e->getTraceAsString());
             return response()->json([
+                'success' => true,
+                'message' => 'Item removed from wishlist',
+                'data' => null
+            ], 200);
+        } catch (\Exception $e) {
+            \Log::error('Wishlist destroy error', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'user_id' => $request->user()?->user_id ?? null,
+                'wishlist_id' => $id
+            ]);
+            
+            return response()->json([
+                'success' => false,
                 'message' => 'Failed to remove item from wishlist',
+                'data' => null,
                 'error' => $e->getMessage()
             ], 500);
         }

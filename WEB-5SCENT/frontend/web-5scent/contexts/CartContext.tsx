@@ -38,6 +38,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
 
+  // Update total whenever items change
+  useEffect(() => {
+    const newTotal = items.reduce((sum, item) => sum + (item.total || 0), 0);
+    setTotal(newTotal);
+  }, [items]);
+
   const refreshCart = async () => {
     if (!user) {
       setItems([]);
@@ -92,7 +98,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const removeFromCart = async (itemId: number) => {
     try {
       await api.delete(`/cart/${itemId}`);
-      await refreshCart();
+      // Update items immediately without refreshing the entire cart
+      setItems(prevItems => prevItems.filter(item => item.cart_id !== itemId));
       // Dispatch cart update event
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('cart-updated'));

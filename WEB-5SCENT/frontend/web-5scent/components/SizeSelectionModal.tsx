@@ -51,34 +51,10 @@ export default function SizeSelectionModal({
   }, [isOpen, product]);
 
   useEffect(() => {
-    if (isOpen) {
-      // Prevent body scroll but allow modal content to scroll
-      const scrollY = window.scrollY;
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.width = '100%';
-      document.body.style.overflow = 'hidden';
-    } else {
-      // Restore scroll position
-      const scrollY = document.body.style.top;
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      document.body.style.overflow = '';
-      if (scrollY) {
-        window.scrollTo(0, parseInt(scrollY || '0') * -1);
-      }
-    }
+    // Allow background to remain scrollable while modal is open
+    // No need to prevent body scroll - user can scroll behind the modal
     return () => {
       // Cleanup on unmount
-      const scrollY = document.body.style.top;
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      document.body.style.overflow = '';
-      if (scrollY) {
-        window.scrollTo(0, parseInt(scrollY || '0') * -1);
-      }
     };
   }, [isOpen]);
 

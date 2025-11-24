@@ -38,29 +38,30 @@ function formatPrice(amount: number): string {
 }
 
 export default function WishlistPage() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const { addToCart } = useCart();
   const { showToast } = useToast();
   const router = useRouter();
 
   const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<WishlistItem['product'] | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
-    if (!user) {
+    if (!loading && !user) {
       router.push('/login');
       return;
     }
 
+    if (loading) return;
     fetchWishlist();
-  }, [user, router]);
+  }, [user, loading, router]);
 
   const fetchWishlist = async () => {
     if (!user) return;
     
-    setLoading(true);
+    setPageLoading(true);
     try {
       const response = await api.get('/wishlist');
       const wishlistData = response.data.data || response.data;
@@ -69,8 +70,9 @@ export default function WishlistPage() {
     } catch (error) {
       console.error('Error fetching wishlist:', error);
       showToast('Failed to load wishlist', 'error');
+      setWishlistItems([]);
     } finally {
-      setLoading(false);
+      setPageLoading(false);
     }
   };
 
@@ -78,6 +80,10 @@ export default function WishlistPage() {
     try {
       await api.delete(`/wishlist/${wishlistId}`);
       setWishlistItems(wishlistItems.filter((item) => item.wishlist_id !== wishlistId));
+      // Dispatch wishlist update event
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('wishlist-updated'));
+      }
       showToast('Removed from wishlist', 'success');
     } catch (error: any) {
       showToast(error.response?.data?.message || 'Failed to remove from wishlist', 'error');
@@ -134,7 +140,7 @@ export default function WishlistPage() {
     return null;
   }
 
-  if (loading) {
+  if (loading || pageLoading) {
     return (
       <main className="min-h-screen bg-white">
         <Navigation />
@@ -177,7 +183,7 @@ export default function WishlistPage() {
             </p>
             <Link
               href="/products"
-              className="px-8 py-3 bg-black text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors font-body"
+              className="px-8 py-3 bg-black text-white rounded-full font-semibold hover:bg-gray-800 transition-colors font-body"
             >
               Browse Products
             </Link>

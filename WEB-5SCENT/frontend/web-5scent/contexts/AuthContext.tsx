@@ -32,25 +32,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    
-    if (token && storedUser) {
-      setUser(JSON.parse(storedUser));
-      // Verify token
-      api.get('/me')
-        .then((res) => {
-          setUser(res.data);
-          localStorage.setItem('user', JSON.stringify(res.data));
-        })
-        .catch(() => {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-        })
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
-    }
+    // Restore auth state from localStorage on mount
+    const restoreAuth = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const storedUser = localStorage.getItem('user');
+        
+        if (token && storedUser) {
+          // Set user immediately from localStorage
+          setUser(JSON.parse(storedUser));
+          
+          // Verify token is still valid
+          const response = await api.get('/me');
+          if (response.data) {
+            setUser(response.data);
+            localStorage.setItem('user', JSON.stringify(response.data));
+          }
+        }
+      } catch (error) {
+        // Token verification failed, clear auth
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    restoreAuth();
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -71,12 +80,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(userData);
   };
 
-  const logout = () => {
-    api.post('/logout').finally(() => {
+  const logout = async () => {
+    try {
+      await api.post('/logout');
+    } finally {
+      // Always clear local state even if logout API fails
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       setUser(null);
-    });
+      
+      // Redirect to login page
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
+    }
   };
 
   const updateUser = (userData: Partial<User>) => {
