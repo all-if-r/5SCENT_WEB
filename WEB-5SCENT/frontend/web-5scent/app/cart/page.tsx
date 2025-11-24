@@ -264,8 +264,8 @@ export default function CartPage() {
                     key={group.productId}
                     className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow"
                   >
-                    {/* Product Header with Images */}
-                    <div className="flex gap-6 mb-6 pb-6 border-b border-gray-200">
+                    {/* Product Header with Images and Info */}
+                    <div className="flex gap-6 mb-4">
                       {/* Product Images Container */}
                       <div className="flex gap-3 flex-shrink-0">
                         {group.images.map((image, idx) => (
@@ -297,11 +297,13 @@ export default function CartPage() {
                         {group.category && (
                           <p className="text-sm text-gray-500 mt-1">{group.category}</p>
                         )}
-                        <p className="text-sm text-gray-600 mt-2">
-                          {group.sizes.length} size{group.sizes.length > 1 ? 's' : ''} in cart
-                        </p>
                       </div>
                     </div>
+
+                    {/* Sizes in cart text */}
+                    <p className="text-sm text-gray-600 mb-4 px-6">
+                      {group.sizes.length} size{group.sizes.length > 1 ? 's' : ''} in cart
+                    </p>
 
                     {/* Size Rows */}
                     <div className="space-y-3">
@@ -440,22 +442,51 @@ export default function CartPage() {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm.itemId !== null && (
-        <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-sm w-full mx-4 shadow-xl">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">
-              {deleteConfirm.isDeleteAll ? 'Remove Items' : 'Remove Item'}
-            </h3>
-            <p className="text-gray-600 mb-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0"
+            style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}
+            onClick={handleCancelDelete}
+          />
+          <div className="relative bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <div className="mb-4">
+              <p className="text-sm uppercase tracking-wide text-gray-500">
+                {deleteConfirm.isDeleteAll ? 'Remove Selected Items' : 'Remove Item'}
+              </p>
+              <h3 className="text-2xl font-header font-bold text-gray-900">
+                {deleteConfirm.isDeleteAll ? 'Delete all selected items?' : 'Delete this item?'}
+              </h3>
+            </div>
+
+            <div className="mb-6 space-y-2">
               {deleteConfirm.isDeleteAll ? (
-                <>Are you sure you want to remove <span className="font-semibold">{deleteConfirm.itemName}</span> from your cart?</>
+                <>
+                  <p className="text-gray-700">
+                    You are about to remove{' '}
+                    <span className="font-semibold">
+                      {selectedItems.length} item{selectedItems.length !== 1 && 's'}
+                    </span>{' '}
+                    from your cart.
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    This action cannot be undone. Are you sure you want to continue?
+                  </p>
+                </>
               ) : (
-                <>Are you sure you want to remove <span className="font-semibold">{deleteConfirm.itemName}</span> ({deleteConfirm.size}) from your cart?</>
+                <>
+                  <div>
+                    <p className="text-gray-900 font-semibold">{deleteConfirm.itemName}</p>
+                    <p className="text-sm text-gray-500">Size: {deleteConfirm.size}</p>
+                  </div>
+                  <p className="text-gray-700">Remove this item from your cart?</p>
+                </>
               )}
-            </p>
+            </div>
+
             <div className="flex gap-3 justify-end">
               <button
                 onClick={handleCancelDelete}
-                className="px-6 py-2 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+                className="px-5 py-2 border border-gray-300 text-gray-700 rounded-full font-semibold hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
@@ -467,7 +498,7 @@ export default function CartPage() {
                     handleConfirmDelete(deleteConfirm.itemId!);
                   }
                 }}
-                className="px-6 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors"
+                className="px-5 py-2 bg-black text-white rounded-full font-semibold hover:bg-gray-800 transition-colors"
               >
                 Delete
               </button>
