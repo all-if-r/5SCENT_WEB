@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { XMarkIcon, Cog6ToothIcon, CubeIcon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,6 +14,8 @@ export default function ProfilePopup({ onClose }: ProfilePopupProps) {
   const { user, logout } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Handle ESC key to close
   useEffect(() => {
@@ -60,15 +62,20 @@ export default function ProfilePopup({ onClose }: ProfilePopupProps) {
   };
 
   const handleLogout = async () => {
-    if (confirm('Are you sure you want to logout?')) {
-      try {
-        logout();
-        showToast('Logged out successfully', 'success');
-        onClose();
-        router.push('/');
-      } catch (error) {
-        showToast('Failed to logout', 'error');
-      }
+    setShowLogoutConfirm(true);
+  };
+
+  const handleConfirmLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await logout();
+      showToast('Logged out successfully', 'success');
+    } catch (error) {
+      showToast('Failed to logout', 'error');
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutConfirm(false);
+      onClose();
     }
   };
 
@@ -182,6 +189,38 @@ export default function ProfilePopup({ onClose }: ProfilePopupProps) {
           </div>
         </div>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setShowLogoutConfirm(false)}
+          />
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 text-center">
+            <h3 className="text-2xl font-semibold text-gray-900">Confirm Logout</h3>
+            <p className="text-sm text-gray-600 mt-3 leading-relaxed">
+              Are you sure you want to log out of your account? You&apos;ll need to sign in again to access your account.
+            </p>
+            <div className="mt-6 flex items-center justify-center gap-3">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 px-4 py-3 rounded-full border border-black text-black font-semibold hover:bg-gray-50 transition-colors"
+                disabled={isLoggingOut}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmLogout}
+                className="flex-1 px-4 py-3 rounded-full bg-black text-white font-semibold hover:bg-gray-900 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                disabled={isLoggingOut}
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </>
   );

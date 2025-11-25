@@ -17,11 +17,25 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
   const { user, logout, updateUser } = useAuth();
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState(0);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const handleLogout = () => {
-    logout();
-    showToast('Logged out successfully', 'success');
-    onClose();
+  const handleLogoutClick = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const handleConfirmLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await logout();
+      showToast('Logged out successfully', 'success');
+    } catch (error) {
+      showToast('Failed to logout', 'error');
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutConfirm(false);
+      onClose();
+    }
   };
 
   if (!user) return null;
@@ -80,7 +94,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
 
           <div className="border-t p-6">
             <button
-              onClick={handleLogout}
+              onClick={handleLogoutClick}
               className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
             >
               Logout
@@ -88,6 +102,37 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
           </div>
         </Dialog.Panel>
       </div>
+
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setShowLogoutConfirm(false)}
+          />
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 text-center">
+            <h3 className="text-2xl font-semibold text-gray-900">Confirm Logout</h3>
+            <p className="text-sm text-gray-600 mt-3 leading-relaxed">
+              Are you sure you want to log out of your account? You&apos;ll need to sign in again to access your account.
+            </p>
+            <div className="mt-6 flex items-center justify-center gap-3">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 px-4 py-3 rounded-full border border-black text-black font-semibold hover:bg-gray-50 transition-colors"
+                disabled={isLoggingOut}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmLogout}
+                className="flex-1 px-4 py-3 rounded-full bg-black text-white font-semibold hover:bg-gray-900 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                disabled={isLoggingOut}
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Dialog>
   );
 }

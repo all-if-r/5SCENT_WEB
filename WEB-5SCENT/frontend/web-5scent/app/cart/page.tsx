@@ -262,15 +262,15 @@ export default function CartPage() {
                 {groupedProducts.map((group) => (
                   <div
                     key={group.productId}
-                    className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow"
+                    className="bg-white border border-gray-100 rounded-2xl p-6 shadow-md hover:shadow-lg transition-shadow"
                   >
-                    {/* Product Header with Images and Info */}
-                    <div className="flex gap-6 mb-4">
+                    {/* Product Header and Size Rows */}
+                    <div className="flex flex-col md:flex-row gap-5">
                       {/* Product Images Container */}
                       <div className="flex gap-3 flex-shrink-0">
                         {group.images.map((image, idx) => (
                           <div key={idx} className="relative group">
-                            <div className="relative w-28 h-32 bg-gray-100 rounded-lg overflow-hidden">
+                            <div className="relative w-28 h-32 bg-gray-100 rounded-xl overflow-hidden shadow-sm border border-gray-100">
                               <Image
                                 src={image}
                                 alt={`${group.productName} - ${group.sizes[idx]}`}
@@ -287,92 +287,93 @@ export default function CartPage() {
                         ))}
                       </div>
 
-                      {/* Product Info */}
-                      <div className="flex-1">
-                        <Link href={`/products/${group.productId}`}>
-                          <h3 className="text-lg font-semibold text-gray-900 hover:text-gray-700 transition-colors">
-                            {group.productName}
-                          </h3>
-                        </Link>
-                        {group.category && (
-                          <p className="text-sm text-gray-500 mt-1">{group.category}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Sizes in cart text */}
-                    <p className="text-sm text-gray-600 mb-4 px-6">
-                      {group.sizes.length} size{group.sizes.length > 1 ? 's' : ''} in cart
-                    </p>
-
-                    {/* Size Rows */}
-                    <div className="space-y-3">
-                      {group.cartItems.map((item) => (
-                        <div
-                          key={item.cart_id}
-                          className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200"
-                        >
-                          {/* Checkbox */}
-                          <input
-                            type="checkbox"
-                            checked={selectedItems.includes(item.cart_id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedItems([...selectedItems, item.cart_id]);
-                              } else {
-                                setSelectedItems(selectedItems.filter(id => id !== item.cart_id));
-                                setSelectAll(false);
-                              }
-                            }}
-                            className="w-5 h-5 cursor-pointer flex-shrink-0"
-                          />
-
-                          {/* Size Label */}
-                          <span className="text-sm font-medium text-gray-900 min-w-[70px]">
-                            {item.size}
-                          </span>
-
-                          {/* Price */}
-                          <span className="text-sm font-semibold text-gray-900 min-w-[100px]">
-                            {formatCurrency(item.price)}
-                          </span>
-
-                          {/* Stock Info */}
-                          <span className="text-xs text-gray-600 min-w-[140px]">
-                            Stock: {item.size === '30ml' 
-                              ? item.product.stock_30ml 
-                              : item.product.stock_50ml} available
-                          </span>
-
-                          {/* Quantity Controls */}
-                          <div className="flex items-center border border-gray-300 rounded-lg">
-                            <button
-                              onClick={() => handleQuantityChange(item.cart_id, item.quantity - 1)}
-                              className="w-8 h-8 flex items-center justify-center hover:bg-gray-200 transition-colors text-gray-700"
-                            >
-                              −
-                            </button>
-                            <span className="w-8 text-center text-sm font-medium text-gray-900">
-                              {item.quantity}
+                      {/* Product Info & Size Rows */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3">
+                          <Link href={`/products/${group.productId}`}>
+                            <h3 className="text-xl font-semibold text-gray-900 hover:text-gray-700 transition-colors">
+                              {group.productName}
+                            </h3>
+                          </Link>
+                          {group.category && (
+                            <span className="inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full bg-black text-white">
+                              {group.category}
                             </span>
-                            <button
-                              onClick={() => handleQuantityChange(item.cart_id, item.quantity + 1)}
-                              className="w-8 h-8 flex items-center justify-center hover:bg-gray-200 transition-colors text-gray-700"
-                            >
-                              +
-                            </button>
-                          </div>
-
-                          {/* Delete Button */}
-                          <button
-                            onClick={() => handleRemove(item.cart_id, group.productName, item.size)}
-                            className="ml-auto text-black hover:text-gray-700 transition-colors flex-shrink-0"
-                            title="Delete this size"
-                          >
-                            <TrashIcon className="w-5 h-5" />
-                          </button>
+                          )}
                         </div>
-                      ))}
+                        <p className="text-sm text-gray-500 mt-2">
+                          {group.sizes.length} size{group.sizes.length > 1 ? 's' : ''} in cart
+                        </p>
+
+                        {/* Size Rows */}
+                        <div className="space-y-3 mt-3 w-full md:max-w-3xl">
+                          {group.cartItems.map((item) => (
+                            <div
+                              key={item.cart_id}
+                              className="flex items-center gap-4 px-4 py-3 bg-gray-50/70 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors shadow-sm"
+                            >
+                              {/* Checkbox */}
+                              <input
+                                type="checkbox"
+                                checked={selectedItems.includes(item.cart_id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedItems([...selectedItems, item.cart_id]);
+                                  } else {
+                                    setSelectedItems(selectedItems.filter(id => id !== item.cart_id));
+                                    setSelectAll(false);
+                                  }
+                                }}
+                                className="w-5 h-5 cursor-pointer flex-shrink-0 rounded-md border-2 border-gray-400 text-black accent-black focus:ring-0 focus:outline-none"
+                              />
+
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <div className="flex flex-col">
+                                  <div className="flex items-center gap-2 text-sm text-gray-900 font-semibold">
+                                    <span>Size {item.size}</span>
+                                    <span className="font-bold">{formatCurrency(item.price)}</span>
+                                  </div>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Stock: {item.size === '30ml' 
+                                      ? item.product.stock_30ml 
+                                      : item.product.stock_50ml} units available
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-3">
+                                {/* Quantity Controls */}
+                                <div className="flex items-center border border-gray-300 rounded-full overflow-hidden bg-white shadow-sm">
+                                  <button
+                                    onClick={() => handleQuantityChange(item.cart_id, item.quantity - 1)}
+                                    className="w-9 h-9 flex items-center justify-center hover:bg-gray-100 transition-colors text-gray-700"
+                                  >
+                                    −
+                                  </button>
+                                  <span className="w-10 text-center text-sm font-semibold text-gray-900">
+                                    {item.quantity}
+                                  </span>
+                                  <button
+                                    onClick={() => handleQuantityChange(item.cart_id, item.quantity + 1)}
+                                    className="w-9 h-9 flex items-center justify-center hover:bg-gray-100 transition-colors text-gray-700"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+
+                                {/* Delete Button */}
+                                <button
+                                  onClick={() => handleRemove(item.cart_id, group.productName, item.size)}
+                                  className="text-black hover:text-gray-700 transition-colors flex-shrink-0"
+                                  title="Delete this size"
+                                >
+                                  <TrashIcon className="w-5 h-5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
