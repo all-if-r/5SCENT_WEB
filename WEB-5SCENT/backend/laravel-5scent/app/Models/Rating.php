@@ -11,6 +11,7 @@ class Rating extends Model
 
     protected $table = 'rating';
     protected $primaryKey = 'rating_id';
+    public $timestamps = false;
 
     protected $fillable = [
         'user_id',

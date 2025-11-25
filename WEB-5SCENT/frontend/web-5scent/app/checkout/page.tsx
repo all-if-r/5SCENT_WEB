@@ -53,7 +53,7 @@ function CheckoutContent() {
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
-  const [paymentMethod, setPaymentMethod] = useState<'QRIS'>('QRIS');
+  const [paymentMethod, setPaymentMethod] = useState<'QRIS' | 'Virtual_Account' | 'Cash'>('QRIS');
   const [loading, setLoading] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
 
@@ -446,7 +446,8 @@ function CheckoutContent() {
               <h2 className="text-xl font-semibold text-gray-900 mb-6 pb-4 border-b border-gray-200">
                 Payment Method
               </h2>
-              <div>
+              <div className="space-y-3">
+                {/* QRIS Option */}
                 <button
                   onClick={() => {
                     setPaymentMethod('QRIS');
@@ -486,6 +487,71 @@ function CheckoutContent() {
                     </div>
                   </div>
                 </button>
+
+                {/* Virtual Account Option */}
+                <button
+                  onClick={() => {
+                    setPaymentMethod('Virtual_Account');
+                    if (errors.paymentMethod) {
+                      setErrors({ ...errors, paymentMethod: undefined });
+                    }
+                  }}
+                  className={`w-full px-6 py-4 rounded-lg border-2 transition-all flex items-center gap-4 ${
+                    paymentMethod === 'Virtual_Account'
+                      ? 'border-black bg-white'
+                      : 'border-gray-300 bg-white hover:border-gray-400'
+                  }`}
+                >
+                  <div className="flex-1 flex items-center gap-4">
+                    <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center flex-shrink-0">
+                      <svg
+                        className="w-6 h-6 text-white"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                      </svg>
+                    </div>
+
+                    <div className="text-left">
+                      <p className="font-semibold text-gray-900">Virtual Account</p>
+                      <p className="text-sm text-gray-600">Transfer to bank virtual account</p>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Cash on Delivery Option */}
+                <button
+                  onClick={() => {
+                    setPaymentMethod('Cash');
+                    if (errors.paymentMethod) {
+                      setErrors({ ...errors, paymentMethod: undefined });
+                    }
+                  }}
+                  className={`w-full px-6 py-4 rounded-lg border-2 transition-all flex items-center gap-4 ${
+                    paymentMethod === 'Cash'
+                      ? 'border-black bg-white'
+                      : 'border-gray-300 bg-white hover:border-gray-400'
+                  }`}
+                >
+                  <div className="flex-1 flex items-center gap-4">
+                    <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center flex-shrink-0">
+                      <svg
+                        className="w-6 h-6 text-white"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" />
+                      </svg>
+                    </div>
+
+                    <div className="text-left">
+                      <p className="font-semibold text-gray-900">Cash on Delivery</p>
+                      <p className="text-sm text-gray-600">Pay when package arrives</p>
+                    </div>
+                  </div>
+                </button>
+
                 {errors.paymentMethod && (
                   <p className="text-red-600 text-sm mt-2">{errors.paymentMethod}</p>
                 )}
