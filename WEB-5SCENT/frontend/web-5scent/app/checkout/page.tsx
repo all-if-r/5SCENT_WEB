@@ -66,8 +66,8 @@ function CheckoutContent() {
   const handleUseMyData = async () => {
     if (user) {
       setFormData({
-        fullName: user.full_name || '',
-        phoneNumber: user.phone_number?.replace('+62', '') || '',
+        fullName: user.name || '',
+        phoneNumber: user.phone?.replace('+62', '') || '',
         addressLine: user.address_line || '',
         district: user.district || '',
         city: user.city || '',
