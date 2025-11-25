@@ -62,10 +62,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}', [OrderController::class, 'show']);
         Route::post('/{id}/cancel', [OrderController::class, 'cancel']);
         Route::post('/{id}/finish', [OrderController::class, 'finish']);
+        Route::get('/{id}/reviews', [RatingController::class, 'getOrderReviews']);
     });
 
     // Ratings
     Route::post('/ratings', [RatingController::class, 'store']);
+    Route::put('/ratings/{id}', [RatingController::class, 'update']);
 
     // Payment
     Route::post('/payments/qris', [PaymentController::class, 'createQrisPayment']);

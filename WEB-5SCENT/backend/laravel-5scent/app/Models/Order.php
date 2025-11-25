@@ -18,6 +18,7 @@ class Order extends Model
         'status',
         'shipping_address',
         'tracking_number',
+        'payment_method',
     ];
 
     protected function casts(): array

@@ -12,7 +12,7 @@ class OrderController extends Controller
 {
     public function index(Request $request)
     {
-        $orders = Order::with('details.product.images')
+        $orders = Order::with('details.product.images', 'user', 'payment')
             ->where('user_id', $request->user()->user_id)
             ->orderBy('created_at', 'desc')
             ->get();
@@ -33,7 +33,7 @@ class OrderController extends Controller
             'cart_ids' => 'required|array',
             'cart_ids.*' => 'exists:cart,cart_id',
             'shipping_address' => 'required|string|max:255',
-            'payment_method' => 'required|in:COD,QRIS',
+            'payment_method' => 'required|in:QRIS,Virtual_Account,Cash',
         ]);
 
         $cartItems = Cart::with('product')
@@ -54,6 +54,7 @@ class OrderController extends Controller
             'status' => 'Pending',
             'shipping_address' => $validated['shipping_address'],
             'total_price' => $totalPrice,
+            'payment_method' => $validated['payment_method'],
         ]);
 
         foreach ($cartItems as $cartItem) {
