@@ -7,6 +7,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import ProfilePopup from './ProfilePopup';
 import { ShoppingCartIcon } from './ShoppingCartIcon';
+import GlitchText from './GlitchText';
+import TextType from './TextType';
 import api from '@/lib/api';
 
 export default function Navigation() {
@@ -76,14 +78,25 @@ export default function Navigation() {
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-20">
-            {/* Logo - Letter spacing 2.8px, using Poppins font */}
-            <Link 
-              href="/" 
-              className="text-3xl font-header font-bold text-gray-900 pl-2"
-              style={{ letterSpacing: '2.8px' }}
-            >
-              5SCENT
-            </Link>
+            {/* Logo - Typewriter effect with letter spacing - Fixed width to prevent layout shift */}
+            <div className="min-w-[200px]">
+              <Link 
+                href="/" 
+                className="pl-2 inline-block"
+              >
+                <div className="text-3xl font-header font-bold text-gray-900 inline-block" style={{ letterSpacing: '2.8px' }}>
+                  <TextType 
+                    text="5SCENT"
+                    as="span"
+                    typingSpeed={100}
+                    loop={true}
+                    showCursor={false}
+                    pauseDuration={1000}
+                    deletingSpeed={80}
+                  />
+                </div>
+              </Link>
+            </div>
 
             {/* Navigation Links - Consistent spacing */}
             <div className="flex items-center gap-8">

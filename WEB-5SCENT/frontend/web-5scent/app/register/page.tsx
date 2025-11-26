@@ -8,6 +8,7 @@ import { useToast } from '@/contexts/ToastContext';
 import api from '@/lib/api';
 import { Eye, EyeOff, Mail, Lock, User, Phone, ChevronLeft, ChevronRight } from 'lucide-react';
 import { validatePassword } from '@/lib/passwordValidation';
+import TextType from '@/components/TextType';
 
 interface ProductImage {
   image_id: number;
@@ -305,8 +306,28 @@ export default function RegisterPage() {
           {/* Brand and Title - Centered */}
           <div className="mb-10 text-center max-md:mb-8">
             <h1 className="text-base uppercase font-bold text-black mb-4 font-header tracking-wider">5SCENT</h1>
-            <h2 className="text-4xl font-bold text-black mb-2 font-header max-md:text-3xl">Create Account</h2>
-            <p className="text-gray-500 text-base font-body">Sign up to get started with 5SCENT</p>
+            <h2 className="text-4xl font-bold text-black mb-2 font-header max-md:text-3xl">
+              <TextType 
+                text={["Create Account"]}
+                as="span"
+                typingSpeed={80}
+                loop={true}
+                showCursor={false}
+                pauseDuration={500}
+                deletingSpeed={60}
+              />
+            </h2>
+            <p className="text-gray-500 text-base font-body">
+              <TextType 
+                text={["Sign up to get started with 5SCENT"]}
+                as="span"
+                typingSpeed={80}
+                loop={true}
+                showCursor={false}
+                pauseDuration={500}
+                deletingSpeed={60}
+              />
+            </p>
           </div>
 
           {/* Sign Up Form */}
