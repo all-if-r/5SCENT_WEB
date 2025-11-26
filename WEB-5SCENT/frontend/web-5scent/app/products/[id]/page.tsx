@@ -241,29 +241,22 @@ export default function ProductDetailPage() {
         <div className="grid md:grid-cols-2 gap-12 mb-16">
           {/* Product Gallery (Left Side) */}
           <div>
-            {/* Main Image with Tilted Card Effect */}
-            <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden mb-4">
-              {selectedImage && (
-                <TiltedCard
-                  imageSrc={selectedImage}
-                  altText={product.name}
-                  captionText={`${product.name} - ${selectedSize}`}
-                  containerHeight="100%"
-                  containerWidth="100%"
-                  imageHeight="100%"
-                  imageWidth="100%"
-                  rotateAmplitude={12}
-                  scaleOnHover={1.2}
-                  showMobileWarning={false}
-                  showTooltip={true}
-                  displayOverlayContent={false}
-                />
-              )}
-            </div>
+            {/* Main Image with Tilt Card Effect */}
+            {selectedImage && (
+              <TiltedCard
+                imageSrc={selectedImage}
+                altText={product.name}
+                labelText={`${product.name} - ${selectedSize}`}
+                containerHeight="500px"
+                containerWidth="100%"
+                rotateAmplitude={15}
+                showShadow={true}
+              />
+            )}
             
             {/* Thumbnail Images */}
             {allImages.length > 1 && (
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-4 gap-2 mt-4">
                 {allImages.map((img, index) => (
                   <button
                     key={img.image_id}

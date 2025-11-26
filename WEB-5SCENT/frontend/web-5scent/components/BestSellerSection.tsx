@@ -11,6 +11,7 @@ import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/contexts/ToastContext';
 import { motion } from 'framer-motion';
 import SizeSelectionModal from '@/components/SizeSelectionModal';
+import TiltCard from '@/components/TiltCard';
 import { useRouter } from 'next/navigation';
 
 interface Product {
@@ -206,94 +207,100 @@ export default function BestSellerSection() {
             const ratingCount = product.ratings_count || 0;
 
             return (
-              <motion.div
+              <TiltCard
                 key={product.product_id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-white rounded-lg shadow-md overflow-hidden relative hover:shadow-xl transition-all duration-300 transform hover:scale-105 group"
+                rotateAmplitude={12}
+                borderRadius="rounded-lg"
+                className="h-full"
               >
-                {/* Category Label */}
-                <div className="absolute top-4 left-4 z-10">
-                  <span className="bg-black text-white text-xs px-4 py-1.5 rounded-full font-medium">
-                    {product.category}
-                  </span>
-                </div>
-
-                {/* Wishlist Icon - White circle with black heart outline, aligned with Night tag */}
-                <div className="absolute top-4 right-4 z-10">
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleWishlistToggle(product.product_id);
-                    }}
-                    className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                  >
-                    {wishlistItems.includes(product.product_id) ? (
-                      <HeartIcon className="w-5 h-5 text-red-500" />
-                    ) : (
-                      <HeartOutlineIcon className="w-5 h-5 text-black" strokeWidth={2} />
-                    )}
-                  </button>
-                </div>
-
-                {/* Product Image */}
-                <Link href={`/products/${product.product_id}`}>
-                  <div className="relative h-64 bg-gray-100 cursor-pointer overflow-hidden">
-                    <Image
-                      src={imageUrl}
-                      alt={product.name}
-                      fill
-                      className="object-cover transition-transform duration-300 group-hover:scale-110"
-                      unoptimized
-                    />
-                  </div>
-                </Link>
-
-                {/* Product Info */}
-                <div className="p-5">
-                  <Link href={`/products/${product.product_id}`}>
-                    <h3 className="text-xl font-header font-semibold text-gray-900 mb-3 hover:text-gray-700 transition-colors cursor-pointer">
-                      {product.name}
-                    </h3>
-                  </Link>
-
-                  {/* Rating - Black stars for actual rating, gray for remaining */}
-                  <div className="flex items-center gap-1 mb-3">
-                    {[...Array(5)].map((_, i) => (
-                      <StarIcon
-                        key={i}
-                        className={`w-5 h-5 ${
-                          i < averageRating
-                            ? 'text-black fill-black'
-                            : 'text-[#BDBDBD] fill-[#BDBDBD]'
-                        }`}
-                      />
-                    ))}
-                    <span className="text-sm text-gray-600 ml-1">
-                      ({ratingCount})
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="bg-white overflow-hidden relative h-full flex flex-col group"
+                >
+                  {/* Category Label */}
+                  <div className="absolute top-4 left-4 z-10">
+                    <span className="bg-black text-white text-xs px-4 py-1.5 rounded-full font-medium">
+                      {product.category}
                     </span>
                   </div>
 
-                  {/* Price - Format: Rp200.000 (no space after Rp), reduced spacing */}
-                  <div className="mb-4">
-                    <p className="text-2xl font-bold text-gray-900">
-                      {formatPrice(product.price_30ml)}
-                    </p>
-                    <p className="text-sm text-gray-500 mt-0.5">30ml</p>
+                  {/* Wishlist Icon - White circle with black heart outline, aligned with Night tag */}
+                  <div className="absolute top-4 right-4 z-10">
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleWishlistToggle(product.product_id);
+                      }}
+                      className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                    >
+                      {wishlistItems.includes(product.product_id) ? (
+                        <HeartIcon className="w-5 h-5 text-red-500" />
+                      ) : (
+                        <HeartOutlineIcon className="w-5 h-5 text-black" strokeWidth={2} />
+                      )}
+                    </button>
                   </div>
 
-                  {/* Add to Cart Button - Pill shape (rounded-full) */}
-                  <button
-                    onClick={() => handleAddToCartClick(product)}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-black text-white rounded-full font-semibold hover:bg-gray-800 transition-colors"
-                  >
-                    <ShoppingCartIcon className="w-5 h-5" />
-                    Add to Cart
-                  </button>
-                </div>
-              </motion.div>
+                  {/* Product Image */}
+                  <Link href={`/products/${product.product_id}`}>
+                    <div className="relative h-64 bg-gray-100 cursor-pointer overflow-hidden">
+                      <Image
+                        src={imageUrl}
+                        alt={product.name}
+                        fill
+                        className="object-cover transition-transform duration-300 group-hover:scale-110"
+                        unoptimized
+                      />
+                    </div>
+                  </Link>
+
+                  {/* Product Info */}
+                  <div className="p-5 flex-1 flex flex-col">
+                    <Link href={`/products/${product.product_id}`}>
+                      <h3 className="text-xl font-header font-semibold text-gray-900 mb-3 hover:text-gray-700 transition-colors cursor-pointer">
+                        {product.name}
+                      </h3>
+                    </Link>
+
+                    {/* Rating - Black stars for actual rating, gray for remaining */}
+                    <div className="flex items-center gap-1 mb-3">
+                      {[...Array(5)].map((_, i) => (
+                        <StarIcon
+                          key={i}
+                          className={`w-5 h-5 ${
+                            i < averageRating
+                              ? 'text-black fill-black'
+                              : 'text-[#BDBDBD] fill-[#BDBDBD]'
+                          }`}
+                        />
+                      ))}
+                      <span className="text-sm text-gray-600 ml-1">
+                        ({ratingCount})
+                      </span>
+                    </div>
+
+                    {/* Price - Format: Rp200.000 (no space after Rp), reduced spacing */}
+                    <div className="mb-4">
+                      <p className="text-2xl font-bold text-gray-900">
+                        {formatPrice(product.price_30ml)}
+                      </p>
+                      <p className="text-sm text-gray-500 mt-0.5">30ml</p>
+                    </div>
+
+                    {/* Add to Cart Button - Pill shape (rounded-full) */}
+                    <button
+                      onClick={() => handleAddToCartClick(product)}
+                      className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-black text-white rounded-full font-semibold hover:bg-gray-800 transition-colors"
+                    >
+                      <ShoppingCartIcon className="w-5 h-5" />
+                      Add to Cart
+                    </button>
+                  </div>
+                </motion.div>
+              </TiltCard>
             );
           })}
         </div>

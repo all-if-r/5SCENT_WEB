@@ -1,153 +1,90 @@
 'use client';
 
-import type { SpringOptions } from 'motion/react';
 import { useRef, useState } from 'react';
-import { motion, useMotionValue, useSpring } from 'motion/react';
+import { motion } from 'motion/react';
+import Image from 'next/image';
+import TiltCard from './TiltCard';
 
 interface TiltedCardProps {
   imageSrc: string;
   altText?: string;
-  captionText?: string;
+  labelText: string;
   containerHeight?: React.CSSProperties['height'];
   containerWidth?: React.CSSProperties['width'];
-  imageHeight?: React.CSSProperties['height'];
-  imageWidth?: React.CSSProperties['width'];
-  scaleOnHover?: number;
   rotateAmplitude?: number;
-  showMobileWarning?: boolean;
-  showTooltip?: boolean;
-  overlayContent?: React.ReactNode;
-  displayOverlayContent?: boolean;
 }
-
-const springValues: SpringOptions = {
-  damping: 30,
-  stiffness: 100,
-  mass: 2
-};
 
 export default function TiltedCard({
   imageSrc,
-  altText = 'Tilted card image',
-  captionText = '',
-  containerHeight = '300px',
+  altText = 'Product image',
+  labelText,
+  containerHeight = '500px',
   containerWidth = '100%',
-  imageHeight = '300px',
-  imageWidth = '300px',
-  scaleOnHover = 1.1,
-  rotateAmplitude = 14,
-  showMobileWarning = true,
-  showTooltip = true,
-  overlayContent = null,
-  displayOverlayContent = false
+  rotateAmplitude = 15
 }: TiltedCardProps) {
-  const ref = useRef<HTMLElement>(null);
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-  const rotateX = useSpring(useMotionValue(0), springValues);
-  const rotateY = useSpring(useMotionValue(0), springValues);
-  const scale = useSpring(1, springValues);
-  const opacity = useSpring(0);
-  const rotateFigcaption = useSpring(0, {
-    stiffness: 350,
-    damping: 30,
-    mass: 1
-  });
-
-  const [lastY, setLastY] = useState(0);
-
-  function handleMouse(e: React.MouseEvent<HTMLElement>) {
-    if (!ref.current) return;
-
-    const rect = ref.current.getBoundingClientRect();
-    const offsetX = e.clientX - rect.left - rect.width / 2;
-    const offsetY = e.clientY - rect.top - rect.height / 2;
-
-    const rotationX = (offsetY / (rect.height / 2)) * -rotateAmplitude;
-    const rotationY = (offsetX / (rect.width / 2)) * rotateAmplitude;
-
-    rotateX.set(rotationX);
-    rotateY.set(rotationY);
-
-    x.set(e.clientX - rect.left);
-    y.set(e.clientY - rect.top);
-
-    const velocityY = offsetY - lastY;
-    rotateFigcaption.set(-velocityY * 0.6);
-    setLastY(offsetY);
-  }
-
-  function handleMouseEnter() {
-    scale.set(scaleOnHover);
-    opacity.set(1);
-  }
-
-  function handleMouseLeave() {
-    opacity.set(0);
-    scale.set(1);
-    rotateX.set(0);
-    rotateY.set(0);
-    rotateFigcaption.set(0);
-  }
+  const [isHovering, setIsHovering] = useState(false);
 
   return (
-    <figure
-      ref={ref}
-      className="relative w-full h-full [perspective:800px] flex flex-col items-center justify-center"
+    <div
       style={{
         height: containerHeight,
         width: containerWidth
       }}
-      onMouseMove={handleMouse}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
     >
-      {showMobileWarning && (
-        <div className="absolute top-4 text-center text-sm block sm:hidden">
-          This effect is not optimized for mobile. Check on desktop.
-        </div>
-      )}
-
-      <motion.div
-        className="relative [transform-style:preserve-3d]"
-        style={{
-          width: imageWidth,
-          height: imageHeight,
-          rotateX,
-          rotateY,
-          scale
-        }}
+      <TiltCard
+        rotateAmplitude={rotateAmplitude}
+        maxShadow="0 30px 60px rgba(0, 0, 0, 0.4)"
+        minShadow="0 10px 25px rgba(0, 0, 0, 0.15)"
+        borderRadius="rounded-[28px]"
+        className="w-full h-full"
       >
-        <motion.img
-          src={imageSrc}
-          alt={altText}
-          className="absolute top-0 left-0 object-cover rounded-[15px] will-change-transform [transform:translateZ(0)] w-full h-full"
-          style={{
-            width: imageWidth,
-            height: imageHeight
-          }}
-        />
-
-        {displayOverlayContent && overlayContent && (
-          <motion.div className="absolute top-0 left-0 z-[2] will-change-transform [transform:translateZ(30px)]">
-            {overlayContent}
-          </motion.div>
-        )}
-      </motion.div>
-
-      {showTooltip && (
-        <motion.figcaption
-          className="pointer-events-none absolute left-0 top-0 rounded-[4px] bg-white px-[10px] py-[4px] text-[10px] text-[#2d2d2d] opacity-0 z-[3] hidden sm:block"
-          style={{
-            x,
-            y,
-            opacity,
-            rotate: rotateFigcaption
-          }}
+        <div
+          className="relative w-full h-full"
+          onMouseEnter={() => setIsHovering(true)}
+          onMouseLeave={() => setIsHovering(false)}
         >
-          {captionText}
-        </motion.figcaption>
-      )}
-    </figure>
+          {/* Background Image */}
+          <Image
+            src={imageSrc}
+            alt={altText}
+            fill
+            className="object-cover"
+            unoptimized
+            priority
+          />
+
+          {/* Gradient Overlay for Label Area - Enhanced */}
+          <div className="absolute top-0 left-0 right-0 h-48 bg-gradient-to-b from-black/60 via-black/30 to-transparent pointer-events-none" />
+
+          {/* 3D Label Pill - Enhanced with stronger depth effect */}
+          <motion.div
+            className="absolute top-6 left-1/2 px-7 py-3.5 bg-black/75 backdrop-blur-md rounded-full whitespace-nowrap will-change-transform"
+            style={{
+              transform: 'translateX(-50%)',
+              transformStyle: 'preserve-3d',
+              zIndex: 20
+            }}
+            animate={{
+              scale: isHovering ? 1.05 : 1,
+              boxShadow: isHovering
+                ? '0 16px 32px rgba(0, 0, 0, 0.5), 0 0 30px rgba(0, 0, 0, 0.3)'
+                : '0 8px 16px rgba(0, 0, 0, 0.3), 0 0 15px rgba(0, 0, 0, 0.15)',
+              y: isHovering ? -2 : 0
+            }}
+            transition={{
+              scale: { duration: 0.3 },
+              boxShadow: { duration: 0.3 },
+              y: { duration: 0.3 }
+            }}
+          >
+            <span className="text-white font-semibold text-sm md:text-base font-body drop-shadow-lg">
+              {labelText}
+            </span>
+          </motion.div>
+        </div>
+      </TiltCard>
+    </div>
   );
 }
+
+
