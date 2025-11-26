@@ -7,7 +7,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import ProfilePopup from './ProfilePopup';
 import { ShoppingCartIcon } from './ShoppingCartIcon';
-import { LogoutIcon } from './LogoutIcon';
 import api from '@/lib/api';
 
 export default function Navigation() {
@@ -15,7 +14,6 @@ export default function Navigation() {
   const { items } = useCart();
   const [showProfile, setShowProfile] = useState(false);
   const [wishlistCount, setWishlistCount] = useState(0);
-  const [isCartAnimating, setIsCartAnimating] = useState(false);
   const cartIconRef = useRef<any>(null);
 
   const cartItemCount = items.reduce((sum, item) => sum + item.quantity, 0);
