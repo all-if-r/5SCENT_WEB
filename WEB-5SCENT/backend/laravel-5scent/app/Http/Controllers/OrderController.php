@@ -12,10 +12,43 @@ class OrderController extends Controller
 {
     public function index(Request $request)
     {
-        $orders = Order::with('details.product.images', 'user', 'payment')
+        $status = strtolower($request->query('status', ''));
+
+        $ordersQuery = Order::with('details.product.images', 'user', 'payment')
             ->where('user_id', $request->user()->user_id)
-            ->orderBy('created_at', 'desc')
-            ->get();
+            ->orderBy('created_at', 'desc');
+
+        if ($status === 'all') {
+            return response()->json($ordersQuery->get());
+        }
+
+        if (!empty($status) && $status !== 'all') {
+            switch ($status) {
+                case 'pending':
+                    $ordersQuery->where('status', 'Pending');
+                    break;
+                case 'packaging':
+                    $ordersQuery->where('status', 'Packaging');
+                    break;
+                case 'shipping':
+                    $ordersQuery->where('status', 'Shipping');
+                    break;
+                case 'delivered':
+                    $ordersQuery->where('status', 'Delivered');
+                    break;
+                case 'cancel':
+                case 'cancelled':
+                    $ordersQuery->where('status', 'Cancel');
+                    break;
+                default:
+                    // If an unknown status is provided, fall back to all orders
+                    break;
+            }
+
+            return response()->json($ordersQuery->get());
+        }
+
+        $orders = $ordersQuery->get();
 
         $grouped = [
             'in_process' => $orders->whereIn('status', ['Pending', 'Packaging']),
@@ -45,14 +78,24 @@ class OrderController extends Controller
             return response()->json(['message' => 'Cart is empty'], 400);
         }
 
-        $totalPrice = $cartItems->sum(function($item) {
-            return $item->total;
+        // Calculate subtotal (sum of all items before tax)
+        $subtotal = $cartItems->sum(function($item) {
+            $price = $item->size === '30ml' 
+                ? $item->product->price_30ml 
+                : $item->product->price_50ml;
+
+            return $price * $item->quantity;
         });
+
+        // Calculate total with 5% tax
+        $tax = $subtotal * 0.05;
+        $totalPrice = $subtotal + $tax;
 
         $order = Order::create([
             'user_id' => $request->user()->user_id,
             'status' => 'Pending',
             'shipping_address' => $validated['shipping_address'],
+            'subtotal' => $subtotal,
             'total_price' => $totalPrice,
             'payment_method' => $validated['payment_method'],
         ]);
@@ -68,7 +111,6 @@ class OrderController extends Controller
                 'size' => $cartItem->size,
                 'quantity' => $cartItem->quantity,
                 'price' => $price,
-                'subtotal' => $cartItem->total,
             ]);
 
             // Update stock

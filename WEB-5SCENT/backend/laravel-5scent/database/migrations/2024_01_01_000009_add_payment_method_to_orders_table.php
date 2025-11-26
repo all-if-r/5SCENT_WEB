@@ -8,9 +8,11 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('orders', function (Blueprint $table) {
-            $table->enum('payment_method', ['QRIS', 'Virtual_Account', 'Cash'])->nullable()->after('tracking_number');
-        });
+        if (!Schema::hasColumn('orders', 'payment_method')) {
+            Schema::table('orders', function (Blueprint $table) {
+                $table->enum('payment_method', ['QRIS', 'Virtual_Account', 'Cash'])->nullable()->after('tracking_number');
+            });
+        }
     }
 
     public function down(): void

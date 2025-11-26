@@ -18,14 +18,12 @@ class OrderDetail extends Model
         'size',
         'quantity',
         'price',
-        'subtotal',
     ];
 
     protected function casts(): array
     {
         return [
             'price' => 'float',
-            'subtotal' => 'float',
         ];
     }
 

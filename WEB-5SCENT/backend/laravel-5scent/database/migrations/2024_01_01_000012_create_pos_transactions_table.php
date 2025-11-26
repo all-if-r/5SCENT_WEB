@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('pos_transaction')) {
+            return;
+        }
+
         Schema::create('pos_transaction', function (Blueprint $table) {
             $table->id();
             $table->string('transaction_number');

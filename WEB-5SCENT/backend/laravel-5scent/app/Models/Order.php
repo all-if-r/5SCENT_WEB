@@ -14,6 +14,7 @@ class Order extends Model
 
     protected $fillable = [
         'user_id',
+        'subtotal',
         'total_price',
         'status',
         'shipping_address',
@@ -24,6 +25,7 @@ class Order extends Model
     protected function casts(): array
     {
         return [
+            'subtotal' => 'float',
             'total_price' => 'float',
         ];
     }

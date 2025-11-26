@@ -11,7 +11,7 @@ class Rating extends Model
 
     protected $table = 'rating';
     protected $primaryKey = 'rating_id';
-    public $timestamps = false;
+    public $timestamps = true;
 
     protected $fillable = [
         'user_id',
@@ -19,6 +19,8 @@ class Rating extends Model
         'order_id',
         'stars',
         'comment',
+        'created_at',
+        'updated_at',
     ];
 
     public function user()

@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { SiHackthebox } from 'react-icons/si';
 import { GoPerson } from 'react-icons/go';
 import { FiPhone } from 'react-icons/fi';
 import { IoLocationOutline } from 'react-icons/io5';
-import { IoMdStar, IoMdStarHalf, IoMdStarOutline } from 'react-icons/io';
+import { IoMdStar, IoMdStarOutline } from 'react-icons/io';
+import { MdOutlineContentCopy } from 'react-icons/md';
+import { LiaBoxSolid } from 'react-icons/lia';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,7 +24,6 @@ interface OrderItem {
   size: string;
   quantity: number;
   price: number;
-  subtotal: number;
   product: {
     product_id: number;
     name: string;
@@ -37,6 +38,7 @@ interface OrderItem {
 interface OrderData {
   order_id: number;
   user_id: number;
+  subtotal: number;
   total_price: number;
   status: 'Pending' | 'Packaging' | 'Shipping' | 'Delivered' | 'Cancel';
   shipping_address: string;
@@ -54,13 +56,6 @@ interface OrderData {
     method: string;
     status: string;
   };
-}
-
-interface GroupedOrders {
-  in_process: OrderData[];
-  shipping: OrderData[];
-  completed: OrderData[];
-  canceled: OrderData[];
 }
 
 type TabType = 'all' | 'pending' | 'packaging' | 'shipping' | 'delivered' | 'cancelled';
@@ -94,16 +89,17 @@ interface ReviewModalState {
   existingReviews: Review[];
 }
 
+interface ConfirmationModalState {
+  isOpen: boolean;
+  type: 'received' | 'cancel' | null;
+  order: OrderData | null;
+}
+
 function OrderHistoryContent() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { showToast } = useToast();
-  const [orders, setOrders] = useState<GroupedOrders>({
-    in_process: [],
-    shipping: [],
-    completed: [],
-    canceled: [],
-  });
+  const [orders, setOrders] = useState<OrderData[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<ModalState>({
@@ -119,6 +115,34 @@ function OrderHistoryContent() {
   });
   const [modalReviews, setModalReviews] = useState<Review[]>([]);
   const [allReviewedOrders, setAllReviewedOrders] = useState<Set<number>>(new Set());
+  const [confirmationModal, setConfirmationModal] = useState<ConfirmationModalState>({
+    isOpen: false,
+    type: null,
+    order: null,
+  });
+
+  const statusQueryMap: Record<TabType, string | undefined> = {
+    all: 'all',
+    pending: 'pending',
+    packaging: 'packaging',
+    shipping: 'shipping',
+    delivered: 'delivered',
+    cancelled: 'cancel',
+  };
+
+  const normalizeOrdersResponse = (data: any): OrderData[] => {
+    if (Array.isArray(data)) {
+      return data as OrderData[];
+    }
+
+    if (data && typeof data === 'object') {
+      return Object.values(data).flatMap((value) =>
+        Array.isArray(value) ? (value as OrderData[]) : []
+      );
+    }
+
+    return [];
+  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -126,65 +150,56 @@ function OrderHistoryContent() {
     }
   }, [user, authLoading, router]);
 
-  useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        setLoading(true);
-        const response = await api.get('/orders');
-        
-        // Handle both array and grouped object responses
-        let ordersData: GroupedOrders;
-        if (Array.isArray(response.data)) {
-          // If response is an array, group it by status
-          ordersData = {
-            in_process: response.data.filter((o: OrderData) => ['Pending', 'Packaging'].includes(o.status)),
-            shipping: response.data.filter((o: OrderData) => o.status === 'Shipping'),
-            completed: response.data.filter((o: OrderData) => o.status === 'Delivered'),
-            canceled: response.data.filter((o: OrderData) => o.status === 'Cancel'),
-          };
-        } else {
-          // If response is already grouped, use it as is
-          ordersData = response.data;
-        }
-        
-        setOrders(ordersData);
-        
-        // Check review status for all orders
-        const reviewedOrderIds = new Set<number>();
-        for (const order of Object.values(ordersData).flat() as OrderData[]) {
-          if (!order.order_id) continue; // Skip if order_id is undefined
-          
-          try {
-            const reviewsResponse = await api.get(`/orders/${order.order_id}/reviews`);
-            const reviews = reviewsResponse.data || [];
-            const reviewedProductIds = new Set(reviews.map((r: Review) => r.product_id));
-            
-            // Check if all products in this order have been reviewed
-            if (order.details.every(item => reviewedProductIds.has(item.product_id))) {
-              reviewedOrderIds.add(order.order_id);
-              // Update button text immediately
-              const button = document.getElementById(`review-button-${order.order_id}`);
-              if (button) {
-                button.textContent = 'Edit Review';
-              }
-            }
-          } catch (error) {
-            // If reviews don't exist, order not fully reviewed
-          }
-        }
-        setAllReviewedOrders(reviewedOrderIds);
-      } catch (error: any) {
-        showToast('Failed to load orders', 'error');
-        console.error(error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const loadOrders = useCallback(async () => {
+    if (!user) return;
 
-    if (user) {
-      fetchOrders();
+    try {
+      setLoading(true);
+      const response = await api.get('/orders', {
+        params: statusQueryMap[activeTab] ? { status: statusQueryMap[activeTab] } : {},
+      });
+
+      const normalizedOrders = normalizeOrdersResponse(response.data)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setOrders(normalizedOrders);
+
+      // Check review status for all orders
+      const reviewedOrderIds = new Set<number>();
+      for (const order of normalizedOrders) {
+        if (!order.order_id) continue;
+
+        try {
+          const reviewsResponse = await api.get(`/orders/${order.order_id}/reviews`);
+          const reviews = reviewsResponse.data || [];
+          const reviewedProductIds = new Set(reviews.map((r: Review) => r.product_id));
+          
+          // Check if all products in this order have been reviewed
+          if (order.details.every(item => reviewedProductIds.has(item.product_id))) {
+            reviewedOrderIds.add(order.order_id);
+            // Update button text immediately
+            const button = document.getElementById(`review-button-${order.order_id}`);
+            if (button) {
+              button.textContent = 'Edit Review';
+            }
+          }
+        } catch (error) {
+          // If reviews don't exist, order not fully reviewed
+        }
+      }
+      setAllReviewedOrders(reviewedOrderIds);
+    } catch (error: any) {
+      showToast('Failed to load orders', 'error');
+      console.error(error);
+    } finally {
+      setLoading(false);
     }
-  }, [user, showToast]);
+  }, [user, activeTab, showToast]);
+
+  useEffect(() => {
+    if (user) {
+      loadOrders();
+    }
+  }, [user, activeTab, loadOrders]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -221,24 +236,21 @@ function OrderHistoryContent() {
   };
 
   const getFilteredOrders = () => {
-    const in_process = Array.isArray(orders.in_process) ? orders.in_process : [];
-    const shipping = Array.isArray(orders.shipping) ? orders.shipping : [];
-    const completed = Array.isArray(orders.completed) ? orders.completed : [];
-    const canceled = Array.isArray(orders.canceled) ? orders.canceled : [];
-    
+    const sortedOrders = [...orders].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
     switch (activeTab) {
       case 'all':
-        return [...in_process, ...shipping, ...completed, ...canceled];
+        return sortedOrders;
       case 'pending':
-        return in_process.filter(o => o.status === 'Pending');
+        return sortedOrders.filter(o => o.status === 'Pending');
       case 'packaging':
-        return in_process.filter(o => o.status === 'Packaging');
+        return sortedOrders.filter(o => o.status === 'Packaging');
       case 'shipping':
-        return shipping;
+        return sortedOrders.filter(o => o.status === 'Shipping');
       case 'delivered':
-        return completed;
+        return sortedOrders.filter(o => o.status === 'Delivered');
       case 'cancelled':
-        return canceled;
+        return sortedOrders.filter(o => o.status === 'Cancel');
       default:
         return [];
     }
@@ -385,15 +397,126 @@ function OrderHistoryContent() {
         }
       }
 
+      // Immediately update the state to mark this order as reviewed
+      if (reviewModal.order) {
+        setAllReviewedOrders(prev => new Set([...prev, reviewModal.order!.order_id]));
+      }
+
       showToast(reviewModal.mode === 'write' ? 'Reviews submitted successfully!' : 'Reviews updated successfully!', 'success');
       handleCloseReviewModal();
-      // Refresh orders
-      const response = await api.get('/orders');
-      setOrders(response.data);
+      // Refresh orders for the current tab
+      await loadOrders();
     } catch (error: any) {
       showToast('Failed to submit reviews', 'error');
       console.error(error);
     }
+  };
+
+  const handleOpenConfirmation = (type: 'received' | 'cancel', order: OrderData) => {
+    setConfirmationModal({
+      isOpen: true,
+      type: type,
+      order: order,
+    });
+  };
+
+  const handleCloseConfirmation = () => {
+    setConfirmationModal({
+      isOpen: false,
+      type: null,
+      order: null,
+    });
+  };
+
+  const handleConfirmReceived = async () => {
+    if (!confirmationModal.order || !user) return;
+
+    try {
+      await api.post(`/orders/${confirmationModal.order.order_id}/finish`);
+      
+      // Update the order in state optimistically
+      setOrders(prev => prev.map(o => 
+        o.order_id === confirmationModal.order!.order_id
+          ? { ...o, status: 'Delivered' }
+          : o
+      ));
+
+      showToast('Order marked as received', 'success');
+      handleCloseConfirmation();
+    } catch (error: any) {
+      showToast('Failed to confirm order', 'error');
+      console.error(error);
+    }
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!confirmationModal.order || !user) return;
+
+    try {
+      await api.post(`/orders/${confirmationModal.order.order_id}/cancel`);
+      
+      // Update the order in state optimistically
+      setOrders(prev => prev.map(o => 
+        o.order_id === confirmationModal.order!.order_id
+          ? { ...o, status: 'Cancel' }
+          : o
+      ));
+
+      showToast('Order cancelled', 'success');
+      handleCloseConfirmation();
+    } catch (error: any) {
+      showToast('Failed to cancel order', 'error');
+      console.error(error);
+    }
+  };
+
+  const copyTrackingNumber = (trackingNumber: string) => {
+    navigator.clipboard.writeText(trackingNumber);
+    showToast('Tracking number copied', 'success');
+  };
+
+  const getActionButton = (order: OrderData) => {
+    if (order.status === 'Shipping') {
+      return (
+        <button
+          onClick={() => handleOpenConfirmation('received', order)}
+          className="flex-1 px-4 py-2.5 bg-black text-white rounded-full text-sm font-medium hover:bg-gray-800 transition-colors"
+        >
+          Mark as Received
+        </button>
+      );
+    } else if (order.status === 'Packaging') {
+      return (
+        <button
+          onClick={() => handleOpenConfirmation('cancel', order)}
+          className="flex-1 px-4 py-2.5 border border-red-500 text-red-500 rounded-full text-sm font-medium hover:bg-red-50 transition-colors"
+        >
+          Cancel Order
+        </button>
+      );
+    } else if (order.status === 'Delivered') {
+      const isReviewed = allReviewedOrders.has(order.order_id);
+      return (
+        <button
+          onClick={() => handleOpenReview(order)}
+          className="flex-1 px-4 py-2.5 bg-black text-white rounded-full text-sm font-medium hover:bg-gray-800 transition-colors"
+          id={`review-button-${order.order_id}`}
+        >
+          {isReviewed ? 'Edit Review' : 'Give Review'}
+        </button>
+      );
+    } else if (order.status === 'Pending') {
+      return (
+        <button
+          disabled
+          className="flex-1 px-4 py-2.5 bg-gray-300 text-gray-500 rounded-full text-sm font-medium cursor-not-allowed"
+        >
+          Processing
+        </button>
+      );
+    }
+
+    return null;
   };
 
   const filteredOrders = getFilteredOrders();
@@ -476,6 +599,25 @@ function OrderHistoryContent() {
                   </div>
                 </div>
 
+                {/* Tracking Row - Show for Shipping and Delivered orders */}
+                {order.tracking_number && (order.status === 'Shipping' || order.status === 'Delivered') && (
+                  <div className="flex items-center gap-2 mb-6 pb-4 border-b border-gray-200">
+                    <LiaBoxSolid className="w-5 h-5 text-gray-600" />
+                    <div className="flex items-center gap-2 text-xs text-gray-600">
+                      <p>
+                        Tracking: <span className="font-medium">{order.tracking_number}</span>
+                      </p>
+                      <button
+                        onClick={() => copyTrackingNumber(order.tracking_number!)}
+                        className="text-gray-600 hover:text-gray-900 transition-colors"
+                        title="Copy tracking number"
+                      >
+                        <MdOutlineContentCopy className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Products List */}
                 <div className="mb-6">
                   {order.details.map((item) => (
@@ -494,7 +636,7 @@ function OrderHistoryContent() {
                           <p className="font-medium text-gray-900 text-sm">{item.product.name}</p>
                           <p className="text-xs text-gray-600">{item.size} × {item.quantity}</p>
                         </div>
-                        <p className="font-semibold text-gray-900 text-sm ml-4 flex-shrink-0">{formatCurrency(item.subtotal)}</p>
+                        <p className="font-semibold text-gray-900 text-sm ml-4 flex-shrink-0">{formatCurrency(item.price)}</p>
                       </div>
                     </div>
                   ))}
@@ -523,13 +665,7 @@ function OrderHistoryContent() {
                   >
                     See Details
                   </button>
-                  <button
-                    onClick={() => handleOpenReview(order)}
-                    className="flex-1 px-4 py-2.5 bg-black text-white rounded-full text-sm font-medium hover:bg-gray-800 transition-colors"
-                    id={`review-button-${order.order_id}`}
-                  >
-                    Give Review
-                  </button>
+                  {getActionButton(order)}
                 </div>
               </div>
             ))
@@ -590,6 +726,29 @@ function OrderHistoryContent() {
                     </div>
                   </div>
 
+                  {/* Tracking Information - Show only if tracking_number exists */}
+                  {modal.order.tracking_number && (
+                    <div className="bg-purple-100 rounded-2xl p-6">
+                      <h3 className="text-base font-semibold text-gray-900 mb-4">Tracking Information</h3>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <LiaBoxSolid className="w-5 h-5 text-gray-600" />
+                          <div>
+                            <p className="text-xs text-gray-600">Tracking Number</p>
+                            <p className="text-sm font-medium text-gray-900">{modal.order.tracking_number}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => copyTrackingNumber(modal.order!.tracking_number!)}
+                          className="text-gray-600 hover:text-gray-900 transition-colors"
+                          title="Copy tracking number"
+                        >
+                          <MdOutlineContentCopy className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Order Items */}
                   <div className="bg-gray-100 rounded-2xl p-6">
                     <h3 className="text-base font-semibold text-gray-900 mb-4">Order Items</h3>
@@ -613,8 +772,6 @@ function OrderHistoryContent() {
                           <div className="text-right flex-shrink-0">
                             <p className="text-xs text-gray-600">Price</p>
                             <p className="text-sm font-semibold text-gray-900">{formatCurrency(item.price)}</p>
-                            <p className="text-xs text-gray-600 mt-2">Subtotal</p>
-                            <p className="text-sm font-semibold text-gray-900">{formatCurrency(item.subtotal)}</p>
                           </div>
                         </div>
                       ))}
@@ -673,11 +830,11 @@ function OrderHistoryContent() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Subtotal</span>
-                        <span className="font-medium text-gray-900">{formatCurrency(modal.order!.total_price / 1.05)}</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(modal.order!.subtotal)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Tax (5%)</span>
-                        <span className="font-medium text-gray-900">{formatCurrency(modal.order!.total_price - (modal.order!.total_price / 1.05))}</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(modal.order!.subtotal * 0.05)}</span>
                       </div>
                       <div className="border-t border-gray-300 pt-3 mt-3 flex justify-between">
                         <span className="font-semibold text-gray-900">Total Amount</span>
@@ -807,6 +964,60 @@ function OrderHistoryContent() {
                   className="w-full px-4 py-3 bg-black text-white rounded-full text-sm font-medium hover:bg-gray-800 transition-colors"
                 >
                   {reviewModal.mode === 'write' ? 'Submit All Reviews' : 'Update All Reviews'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal - Order Received */}
+      {confirmationModal.isOpen && confirmationModal.type === 'received' && confirmationModal.order && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/30 pointer-events-auto" onClick={handleCloseConfirmation} />
+          <div className="relative w-full max-w-md mx-auto p-4 pointer-events-auto z-50">
+            <div className="bg-white rounded-2xl shadow-2xl p-6 space-y-6">
+              <h2 className="text-xl font-bold text-gray-900 text-center">Confirm Order Received</h2>
+              <p className="text-sm text-gray-600 text-center">Has your order arrived correctly and in good condition?</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleCloseConfirmation}
+                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-full text-sm font-medium hover:bg-gray-50 transition-colors"
+                >
+                  Not Yet
+                </button>
+                <button
+                  onClick={handleConfirmReceived}
+                  className="flex-1 px-4 py-3 bg-black text-white rounded-full text-sm font-medium hover:bg-gray-800 transition-colors"
+                >
+                  Yes, Received
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal - Cancel Order */}
+      {confirmationModal.isOpen && confirmationModal.type === 'cancel' && confirmationModal.order && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/30 pointer-events-auto" onClick={handleCloseConfirmation} />
+          <div className="relative w-full max-w-md mx-auto p-4 pointer-events-auto z-50">
+            <div className="bg-white rounded-2xl shadow-2xl p-6 space-y-6">
+              <h2 className="text-xl font-bold text-gray-900 text-center">Cancel Order</h2>
+              <p className="text-sm text-gray-600 text-center">Are you sure you want to cancel this order? This action cannot be undone.</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleCloseConfirmation}
+                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-full text-sm font-medium hover:bg-gray-50 transition-colors"
+                >
+                  Keep Order
+                </button>
+                <button
+                  onClick={handleConfirmCancel}
+                  className="flex-1 px-4 py-3 bg-red-500 text-white rounded-full text-sm font-medium hover:bg-red-600 transition-colors"
+                >
+                  Yes, Cancel
                 </button>
               </div>
             </div>

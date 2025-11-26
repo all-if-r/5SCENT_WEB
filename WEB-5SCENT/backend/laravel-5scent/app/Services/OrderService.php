@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\Cart;
 use App\Models\OrderDetail;
-use Illuminate\Support\Str;
 
 class OrderService
 {
@@ -13,25 +12,30 @@ class OrderService
     {
         $cartItems = Cart::with('product')
             ->where('user_id', $userId)
-            ->whereIn('id', $cartIds)
+            ->whereIn('cart_id', $cartIds)
             ->get();
 
         if ($cartItems->isEmpty()) {
             throw new \Exception('Cart is empty');
         }
 
-        $totalAmount = $cartItems->sum(function($item) {
-            return $item->total;
+        $subtotal = $cartItems->sum(function($item) {
+            $price = $item->size === '30ml'
+                ? $item->product->price_30ml
+                : $item->product->price_50ml;
+
+            return $price * $item->quantity;
         });
+
+        $totalAmount = $subtotal * 1.05;
 
         $order = Order::create([
             'user_id' => $userId,
-            'order_number' => 'ORD-' . strtoupper(Str::random(10)),
             'status' => 'Pending',
             'shipping_address' => $shippingAddress,
-            'total_amount' => $totalAmount,
+            'subtotal' => $subtotal,
+            'total_price' => $totalAmount,
             'payment_method' => $paymentMethod,
-            'payment_status' => 'Pending',
         ]);
 
         foreach ($cartItems as $cartItem) {
@@ -40,12 +44,11 @@ class OrderService
                 : $cartItem->product->price_50ml;
 
             OrderDetail::create([
-                'order_id' => $order->id,
+                'order_id' => $order->order_id,
                 'product_id' => $cartItem->product_id,
                 'size' => $cartItem->size,
                 'quantity' => $cartItem->quantity,
                 'price' => $price,
-                'subtotal' => $cartItem->total,
             ]);
 
             // Update stock
