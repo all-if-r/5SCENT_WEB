@@ -58,8 +58,16 @@ export default function AdminDashboardPage() {
   const [timeFrame, setTimeFrame] = useState<'week' | 'month' | 'year'>('month');
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (options?: { isRefresh?: boolean }) => {
+    const isRefresh = options?.isRefresh;
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
     try {
       // Fetch real data from API
       const response = await api.get('/admin/dashboard/data', {
@@ -70,7 +78,7 @@ export default function AdminDashboardPage() {
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
       // Fallback to empty data on error
-      setDashboardData({
+      setDashboardData((previous) => previous || {
         orderStats: {
           total: 0,
           packaging: 0,
@@ -87,18 +95,21 @@ export default function AdminDashboardPage() {
         recentOrders: [],
       });
     } finally {
-      setLoading(false);
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    setLoading(true);
     fetchDashboardData();
   }, [timeFrame]);
 
   if (!dashboardData || loading) {
     return (
-      <AdminLayout>
+      <AdminLayout onRefresh={() => fetchDashboardData({ isRefresh: true })} refreshing={refreshing || loading}>
         <div className="flex items-center justify-center h-full">
           <div className="animate-pulse">Loading dashboard...</div>
         </div>
@@ -143,39 +154,14 @@ export default function AdminDashboardPage() {
     );
   };
 
-  return (
-    <AdminLayout>
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="flex justify-between items-start mb-8">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard Overview</h1>
-              <p className="text-gray-600">Monitor your store performance at a glance</p>
-            </div>
-            <div className="flex flex-col items-end gap-2">
-              <button
-                onClick={() => {
-                  setLoading(true);
-                  fetchDashboardData();
-                }}
-                disabled={loading}
-                className="px-4 py-2 bg-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
-              >
-                {loading ? 'Refreshing...' : '↻ Refresh'}
-              </button>
-              <p className="text-sm text-gray-600">
-                {new Date().toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                })}
-              </p>
-            </div>
-          </div>
+  const handleRefresh = () => fetchDashboardData({ isRefresh: true });
 
+  return (
+    <AdminLayout onRefresh={handleRefresh} refreshing={refreshing || loading}>
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-7xl mx-auto space-y-8">
           {/* Key Metrics - Top Row */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {/* Total Orders */}
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <div className="flex items-start justify-between mb-4">

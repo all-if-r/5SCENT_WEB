@@ -16,6 +16,7 @@ import { useToast } from '@/contexts/ToastContext';
 import SizeSelectionModal from '@/components/SizeSelectionModal';
 import { animateToIcon } from '@/lib/animations';
 import { roundRating } from '@/lib/utils';
+import { normalizeProductsResponse, pickDisplayImage } from '@/lib/productData';
 
 interface Product {
   product_id: number;
@@ -61,12 +62,11 @@ function ProductsContent() {
       setLoading(true);
       try {
         const response = await api.get('/products');
-        const productsData = response.data.data || response.data;
-        const productsList = Array.isArray(productsData) ? productsData : [];
+        const productsList = normalizeProductsResponse(response.data) as Product[];
         setAllProducts(productsList);
 
         // Calculate max price
-        const max = Math.max(...productsList.map((p: Product) => p.price_30ml), 0);
+        const max = Math.max(...productsList.map((p: Product) => p.price_30ml ?? 0), 0);
         setMaxPrice(max);
         setPriceRange([0, max]);
 
@@ -116,7 +116,10 @@ function ProductsContent() {
 
     // Price range filter
     filtered = filtered.filter(
-      (product) => product.price_30ml >= priceRange[0] && product.price_30ml <= priceRange[1]
+      (product) => {
+        const price = product.price_30ml ?? 0;
+        return price >= priceRange[0] && price <= priceRange[1];
+      }
     );
 
     setProducts(filtered);
@@ -214,42 +217,8 @@ function ProductsContent() {
     await addToCart(productId, size, quantity);
   };
 
-  // Get 30ml image for product
-  const get30mlImage = (product: Product): string => {
-    const image30ml = product.images.find((img) => img.is_50ml === 0);
-    if (image30ml) {
-      let imageUrl = image30ml.image_url;
-      
-      // If it's a full URL from Laravel storage
-      if (imageUrl.includes('http://') || imageUrl.includes('https://')) {
-        const imageName = imageUrl.split('/').pop();
-        if (imageName && imageName.toLowerCase().includes('30ml')) {
-          return `/products/${imageName}`;
-        }
-        // Try to extract filename and use local path
-        if (imageName) {
-          return `/products/${imageName}`;
-        }
-      }
-      
-      // If it already contains 30ml in the path
-      if (imageUrl.toLowerCase().includes('30ml')) {
-        const imageName = imageUrl.split('/').pop();
-        if (imageName) {
-          return `/products/${imageName}`;
-        }
-      }
-      
-      // If it's a relative path, check if it starts with /products
-      if (imageUrl.startsWith('/products/')) {
-        return imageUrl;
-      }
-      
-      // Default: try to use the image URL as is, or fallback to products folder
-      const imageName = imageUrl.split('/').pop();
-      return imageName ? `/products/${imageName}` : '/products/placeholder.png';
-    }
-    return '/products/placeholder.png';
+  const getProductImage = (product: Product): string => {
+    return pickDisplayImage(product);
   };
 
   return (
@@ -352,12 +321,16 @@ function ProductsContent() {
               </div>
             ) : products.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-gray-500 text-lg">No products found</p>
+                <p className="text-gray-500 text-lg">
+                  {allProducts.length === 0
+                    ? 'No products available yet.'
+                    : 'No products match your filters.'}
+                </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {products.map((product) => {
-                  const imageUrl = get30mlImage(product);
+                  const imageUrl = getProductImage(product);
                   const isInWishlist = wishlistItems.includes(product.product_id);
                   const averageRating = Number(product.ratings_avg_stars) || 0;
                   const ratingCount = product.ratings_count || 0;

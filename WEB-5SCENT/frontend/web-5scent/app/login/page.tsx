@@ -5,29 +5,15 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
-import api from '@/lib/api';
 import { Eye, EyeOff, Mail, Lock, ChevronLeft, ChevronRight } from 'lucide-react';
 import DualTextType from '@/components/DualTextType';
-
-interface ProductImage {
-  image_id: number;
-  product_id: number;
-  image_url: string;
-  is_50ml: number;
-}
-
-interface Product {
-  product_id: number;
-  name: string;
-  images: ProductImage[];
-}
+import { fetchCarouselImages } from '@/lib/productData';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [carouselImages, setCarouselImages] = useState<string[]>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -37,85 +23,12 @@ export default function LoginPage() {
 
   // Fetch products with 50ml images
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const response = await api.get('/products');
-        const productsData = response.data.data || response.data;
-        setProducts(Array.isArray(productsData) ? productsData : []);
-        
-        // Extract 50ml images
-        const images50ml: string[] = [];
-        productsData.forEach((product: Product) => {
-          if (product.images && Array.isArray(product.images)) {
-            product.images.forEach((img: ProductImage) => {
-              if (img.is_50ml === 1 && img.image_url) {
-                let imageUrl = img.image_url;
-                
-                // Handle different image URL formats
-                if (imageUrl.includes('http://') || imageUrl.includes('https://')) {
-                  const imageName = imageUrl.split('/').pop();
-                  if (imageName && imageName.includes('50ml')) {
-                    imageUrl = `/products/${imageName}`;
-                  } else {
-                    return;
-                  }
-                } else {
-                  if (!imageUrl.startsWith('/')) {
-                    imageUrl = '/' + imageUrl;
-                  }
-                  if (!imageUrl.startsWith('/products/')) {
-                    const imageName = imageUrl.split('/').pop();
-                    if (imageName && imageName.includes('50ml')) {
-                      imageUrl = `/products/${imageName}`;
-                    } else {
-                      return;
-                    }
-                  }
-                }
-                
-                if (imageUrl.includes('50ml') && !images50ml.includes(imageUrl)) {
-                  images50ml.push(imageUrl);
-                }
-              }
-            });
-          }
-        });
-        
-        // Ensure Night Bloom is first, then use other images
-        const nightBloomIndex = images50ml.findIndex(img => img.toLowerCase().includes('nightbloom'));
-        if (nightBloomIndex > 0) {
-          const nightBloom = images50ml.splice(nightBloomIndex, 1)[0];
-          images50ml.unshift(nightBloom);
-        }
-        
-        // If no images from API, use local files with Night Bloom first
-        if (images50ml.length === 0) {
-          const localImages = [
-            '/products/nightbloom50ml.png',
-            '/products/CitrusFresh50ml.png',
-            '/products/OceanBreeze50ml.png',
-            '/products/RoyalOud50ml.png',
-            '/products/VanillaSky50ml.png',
-          ];
-          setCarouselImages(localImages);
-        } else {
-          setCarouselImages(images50ml);
-        }
-      } catch (error) {
-        console.error('Error fetching products:', error);
-        // Fallback to local images with Night Bloom first
-        const localImages = [
-          '/products/nightbloom50ml.png',
-          '/products/CitrusFresh50ml.png',
-          '/products/OceanBreeze50ml.png',
-          '/products/RoyalOud50ml.png',
-          '/products/VanillaSky50ml.png',
-        ];
-        setCarouselImages(localImages);
-      }
+    const loadCarouselImages = async () => {
+      const images = await fetchCarouselImages();
+      setCarouselImages(images);
     };
 
-    fetchProducts();
+    loadCarouselImages();
   }, []);
 
   // Auto-advance carousel every 3 seconds

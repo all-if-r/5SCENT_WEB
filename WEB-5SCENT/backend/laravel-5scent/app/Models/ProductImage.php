@@ -11,6 +11,7 @@ class ProductImage extends Model
 
     protected $table = 'productimage';
     protected $primaryKey = 'image_id';
+    public $timestamps = true;
 
     protected $fillable = [
         'product_id',

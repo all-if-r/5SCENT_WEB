@@ -19,6 +19,7 @@ Route::post('/login', [AuthController::class, 'login']);
 
 Route::get('/products', [ProductController::class, 'index']);
 Route::get('/products/best-sellers', [ProductController::class, 'bestSellers']);
+Route::get('/products/images/50ml', [ProductController::class, 'carouselImages']);
 Route::get('/products/{id}', [ProductController::class, 'show']);
 
 // Admin auth

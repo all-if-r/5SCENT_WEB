@@ -27,13 +27,15 @@ class Product extends Model
 
     public function images()
     {
-        return $this->hasMany(ProductImage::class, 'product_id', 'product_id');
+        return $this->hasMany(ProductImage::class, 'product_id', 'product_id')
+                    ->orderBy('image_id');
     }
 
     public function mainImage()
     {
         return $this->hasOne(ProductImage::class, 'product_id', 'product_id')
-                    ->where('is_50ml', 1);
+                    ->where('is_50ml', 1)
+                    ->orderBy('image_id');
     }
 
     public function cartItems()

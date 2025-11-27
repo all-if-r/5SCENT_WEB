@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAdmin } from '@/contexts/AdminContext';
 import { useToast } from '@/contexts/ToastContext';
+import { FiCalendar } from 'react-icons/fi';
 import {
   Bars3Icon,
   XMarkIcon,
@@ -20,9 +21,11 @@ import {
 
 interface AdminLayoutProps {
   children: React.ReactNode;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }
 
-export default function AdminLayout({ children }: AdminLayoutProps) {
+export default function AdminLayout({ children, onRefresh, refreshing }: AdminLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { admin, logoutAdmin } = useAdmin();
@@ -49,6 +52,14 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   };
 
   const isActive = (href: string) => pathname === href;
+
+  const isDashboard = pathname?.startsWith('/admin/dashboard');
+  const isProducts = pathname?.startsWith('/admin/products');
+
+  const headerTitle = isProducts ? 'Product Management' : 'Dashboard Overview';
+  const headerSubtitle = isProducts
+    ? 'Manage your perfume inventory'
+    : 'Monitor your store performance at a glance';
 
   if (!admin) {
     return null;
@@ -124,33 +135,46 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="md:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              {sidebarOpen ? (
-                <XMarkIcon className="w-6 h-6" />
-              ) : (
-                <Bars3Icon className="w-6 h-6" />
-              )}
-            </button>
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">Dashboard</h1>
-              <p className="text-sm text-gray-600">Welcome back, {admin.name}</p>
-            </div>
+        <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between gap-4">
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="md:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            {sidebarOpen ? (
+              <XMarkIcon className="w-6 h-6" />
+            ) : (
+              <Bars3Icon className="w-6 h-6" />
+            )}
+          </button>
+
+          {/* Left: Headline and Subtitle Block */}
+          <div className="flex-1 hidden md:block">
+            <h1 className="text-xl font-semibold text-gray-900">{headerTitle}</h1>
+            <p className="text-sm text-gray-600">{headerSubtitle}</p>
           </div>
 
-          {/* Date Display */}
-          <div className="text-right">
-            <p className="text-sm font-medium text-gray-900">
-              {new Date().toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-              })}
-            </p>
+          {/* Right: Date Chip and Actions */}
+          <div className="ml-auto flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2 bg-white border border-black rounded-full px-4 py-2">
+              <FiCalendar className="w-5 h-5 text-black" />
+              <span className="text-sm font-medium text-black">
+                {new Date().toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </span>
+            </div>
+
+            {isDashboard && onRefresh && (
+              <button
+                onClick={onRefresh}
+                disabled={refreshing}
+                className="px-4 py-2 bg-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
+              >
+                {refreshing ? 'Refreshing...' : '↻ Refresh'}
+              </button>
+            )}
           </div>
         </header>
 
