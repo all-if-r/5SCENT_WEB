@@ -6,16 +6,14 @@ import AdminLayout from '@/components/AdminLayout';
 import api from '@/lib/api';
 import Image from 'next/image';
 import {
-  DevicePhoneMobileIcon,
-  ShoppingBagIcon,
   TruckIcon,
   CheckCircleIcon,
   XCircleIcon,
-  ShoppingCartIcon,
-  Bars3Icon,
 } from '@heroicons/react/24/outline';
 import { FaStar, FaRegStar, FaRegStarHalfStroke } from 'react-icons/fa6';
 import { PiMoneyWavy } from 'react-icons/pi';
+import { FiShoppingBag, FiPackage } from 'react-icons/fi';
+import { LuPackage2 } from 'react-icons/lu';
 import { formatCurrency, roundRating } from '@/lib/utils';
 
 interface OrderStats {
@@ -182,7 +180,7 @@ export default function AdminDashboardPage() {
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <div className="flex items-start justify-between mb-4">
                 <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <DevicePhoneMobileIcon className="w-6 h-6 text-gray-600" />
+                  <FiShoppingBag className="w-6 h-6 text-gray-600" />
                 </div>
                 {dashboardData.orderStats.totalChange && (
                   <div className="flex items-center gap-1 text-green-600">
@@ -198,7 +196,7 @@ export default function AdminDashboardPage() {
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <div className="flex items-start justify-between mb-4">
                 <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <ShoppingBagIcon className="w-6 h-6 text-gray-600" />
+                  <LuPackage2 className="w-6 h-6 text-gray-600" />
                 </div>
               </div>
               <p className="text-gray-600 text-sm mb-2">Packaging</p>
@@ -252,7 +250,7 @@ export default function AdminDashboardPage() {
                 <PiMoneyWavy className="w-6 h-6 text-white" />
               </div>
               <p className="text-gray-300 text-sm mb-2">Total Revenue</p>
-              <p className="text-3xl font-bold mb-2">Rp {(dashboardData.totalRevenue / 1000000).toFixed(1)}M</p>
+              <p className="text-3xl font-bold mb-2">Rp {dashboardData.totalRevenue.toLocaleString('id-ID')}</p>
               <p className="text-sm text-gray-300">
                 ↑ {dashboardData.revenueChange.toFixed(1)}% from last month
               </p>
@@ -262,11 +260,11 @@ export default function AdminDashboardPage() {
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <div className="flex items-start justify-between mb-4">
                 <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <ShoppingCartIcon className="w-6 h-6 text-gray-600" />
+                  <FiShoppingBag className="w-6 h-6 text-gray-600" />
                 </div>
               </div>
               <p className="text-gray-600 text-sm mb-2">Average Order Value</p>
-              <p className="text-2xl font-bold text-gray-900">Rp {(dashboardData.averageOrderValue / 1000).toFixed(0)}K</p>
+              <p className="text-2xl font-bold text-gray-900">Rp {dashboardData.averageOrderValue.toLocaleString('id-ID', { maximumFractionDigits: 0 })}</p>
               <p className="text-xs text-gray-600 mt-2">Per transaction</p>
             </div>
 
@@ -274,7 +272,7 @@ export default function AdminDashboardPage() {
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <div className="flex items-start justify-between mb-4">
                 <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <Bars3Icon className="w-6 h-6 text-gray-600" />
+                  <FiPackage className="w-6 h-6 text-gray-600" />
                 </div>
               </div>
               <p className="text-gray-600 text-sm mb-2">Total Products</p>
@@ -310,23 +308,28 @@ export default function AdminDashboardPage() {
               </div>
 
               {/* Chart */}
-              <div className="flex items-end justify-around h-64 gap-2">
+              <div className="space-y-3">
                 {dashboardData.salesData.map((item, index) => (
-                  <div key={index} className="flex flex-col items-center gap-2 flex-1">
-                    <div className="relative w-full h-48 flex items-end justify-center">
-                      <div
-                        className="w-full rounded-t-lg transition-all hover:opacity-80"
-                        style={{
-                          height: `${(item.value / maxValue) * 100}%`,
-                          backgroundColor: COLORS[index % COLORS.length],
-                        }}
-                        title={`${item.label}: Rp ${(item.value / 1000000).toFixed(1)}M`}
-                      />
+                  <div key={index} className="flex items-center gap-3">
+                    <div className="w-16 text-right">
+                      <p className="text-xs font-medium text-gray-600">{item.label}</p>
                     </div>
-                    <p className="text-xs text-gray-600 text-center">{item.label}</p>
-                    <p className="text-xs font-semibold text-gray-900">
-                      Rp {(item.value / 1000000).toFixed(1)}M
-                    </p>
+                    <div className="flex-1">
+                      <div className="relative h-8 bg-gray-100 rounded-lg overflow-hidden flex items-center">
+                        <div
+                          className="h-full rounded-lg transition-all hover:opacity-80 flex items-center justify-end pr-3"
+                          style={{
+                            width: `${(item.value / maxValue) * 100}%`,
+                            backgroundColor: COLORS[index % COLORS.length],
+                          }}
+                          title={`${item.label}: Rp ${item.value.toLocaleString('id-ID')}`}
+                        >
+                          <p className="text-xs font-semibold text-white text-right">
+                            Rp {item.value.toLocaleString('id-ID')}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -337,22 +340,35 @@ export default function AdminDashboardPage() {
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Best Sellers</h2>
               <p className="text-sm text-gray-600 mb-6">Top performing products</p>
 
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {dashboardData.bestSellers.map((product, index) => (
-                  <div key={product.product_id} className="flex items-center gap-3 pb-4 border-b border-gray-200 last:border-0 last:pb-0">
-                    {/* Ranking */}
-                    <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-700">
+                  <div key={product.product_id} className="flex items-start gap-4 pb-6 border-b border-gray-200 last:border-0 last:pb-0">
+                    {/* Ranking Circle */}
+                    <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
                       {index + 1}
+                    </div>
+
+                    {/* Product Image */}
+                    <div className="w-16 h-16 bg-gray-100 rounded-lg flex-shrink-0 overflow-hidden">
+                      {product.image ? (
+                        <img
+                          src={product.image}
+                          alt={product.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          <span className="text-xs">No image</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Product Info */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
+                      <p className="text-sm font-semibold text-gray-900">{product.name}</p>
                       <p className="text-xs text-gray-600">{product.stock} in stock</p>
+                      <div className="mt-2">{renderStars(product.rating)}</div>
                     </div>
-
-                    {/* Rating */}
-                    <div>{renderStars(product.rating)}</div>
                   </div>
                 ))}
               </div>
@@ -389,7 +405,7 @@ export default function AdminDashboardPage() {
                       <td className="px-4 py-4 text-sm font-medium text-gray-900">{order.order_no}</td>
                       <td className="px-4 py-4 text-sm text-gray-600">{order.customer_name}</td>
                       <td className="px-4 py-4 text-sm text-gray-600">{order.items_count} item(s)</td>
-                      <td className="px-4 py-4 text-sm font-medium text-gray-900">Rp {(order.total / 1000).toFixed(0)}K</td>
+                      <td className="px-4 py-4 text-sm font-medium text-gray-900">Rp {order.total.toLocaleString('id-ID', { maximumFractionDigits: 0 })}</td>
                       <td className="px-4 py-4 text-sm text-gray-600">{order.date}</td>
                       <td className="px-4 py-4">
                         <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(order.status)}`}>

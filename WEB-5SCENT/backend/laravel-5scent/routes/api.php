@@ -86,6 +86,7 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
 
     // Products
     Route::apiResource('products', ProductController::class);
+    Route::delete('/products/{productId}/images/{imageId}', [ProductController::class, 'deleteImage']);
 
     // POS
     Route::prefix('pos')->group(function () {

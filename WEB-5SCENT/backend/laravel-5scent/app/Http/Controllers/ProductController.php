@@ -38,8 +38,8 @@ class ProductController extends Controller
             }
 
             return response()->json([
-                'data' => $products,
-                'count' => $products->count(),
+                'products' => $products,
+                'total' => $products->count(),
             ], 200);
         } catch (\Exception $e) {
             \Log::error('ProductController@index error: ' . $e->getMessage());
@@ -98,23 +98,31 @@ class ProductController extends Controller
             'price_30ml' => 'required|numeric|min:0',
             'price_50ml' => 'required|numeric|min:0',
             'stock_30ml' => 'required|integer|min:0',
-            'stock_50ml' => 'required|integer|min:0',
-            'images' => 'required|array|min:1',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+            'stock_50ml' => 'nullable|integer|min:0',
+            'images' => 'nullable|array',
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:10240',
         ]);
+
+        // Set stock_50ml if not provided
+        if (!isset($validated['stock_50ml'])) {
+            $validated['stock_50ml'] = $validated['stock_30ml'];
+        }
 
         $product = Product::create($validated);
 
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $index => $image) {
-                $path = $image->store('products', 'public');
-                $imageUrl = asset('storage/' . $path);
-                
-                ProductImage::create([
-                    'product_id' => $product->product_id,
-                    'image_url' => $imageUrl,
-                    'is_50ml' => $index === 0 ? 0 : 0, // Adjust based on your logic
-                ]);
+                if ($image) {
+                    $filename = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
+                    $image->move(public_path('products'), $filename);
+                    $imageUrl = '/products/' . $filename;
+                    
+                    ProductImage::create([
+                        'product_id' => $product->product_id,
+                        'image_url' => $imageUrl,
+                        'is_50ml' => $index === 0 ? 1 : 0,
+                    ]);
+                }
             }
         }
 
@@ -124,6 +132,13 @@ class ProductController extends Controller
     public function update(Request $request, $id)
     {
         $product = Product::findOrFail($id);
+
+        \Log::info('Update request received', [
+            'product_id' => $id,
+            'request_data' => $request->except('images'),
+            'has_images' => $request->hasFile('images'),
+            'files' => $request->file('images') ? count($request->file('images')) : 0,
+        ]);
 
         $validated = $request->validate([
             'name' => 'sometimes|string|max:100',
@@ -135,23 +150,43 @@ class ProductController extends Controller
             'price_30ml' => 'sometimes|numeric|min:0',
             'price_50ml' => 'sometimes|numeric|min:0',
             'stock_30ml' => 'sometimes|integer|min:0',
-            'stock_50ml' => 'sometimes|integer|min:0',
-            'images' => 'sometimes|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+            'stock_50ml' => 'nullable|integer|min:0',
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:10240',
         ]);
 
-        $product->update($validated);
+        \Log::info('Validation passed', $validated);
+
+        // Only update provided fields
+        $updateData = [];
+        foreach (['name', 'description', 'top_notes', 'middle_notes', 'base_notes', 'category', 'price_30ml', 'price_50ml', 'stock_30ml', 'stock_50ml'] as $field) {
+            if (isset($validated[$field])) {
+                $updateData[$field] = $validated[$field];
+            }
+        }
+
+        if ($updateData) {
+            $product->update($updateData);
+        }
 
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $index => $image) {
-                $path = $image->store('products', 'public');
-                $imageUrl = asset('storage/' . $path);
-                
-                ProductImage::create([
-                    'product_id' => $product->product_id,
-                    'image_url' => $imageUrl,
-                    'is_50ml' => 0,
-                ]);
+                if ($image) {
+                    $filename = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
+                    $image->move(public_path('products'), $filename);
+                    $imageUrl = '/products/' . $filename;
+                    
+                    \Log::info('Creating ProductImage:', [
+                        'product_id' => $product->product_id,
+                        'image_url' => $imageUrl,
+                        'index' => $index,
+                    ]);
+                    
+                    ProductImage::create([
+                        'product_id' => $product->product_id,
+                        'image_url' => $imageUrl,
+                        'is_50ml' => 0,
+                    ]);
+                }
             }
         }
 
@@ -164,5 +199,25 @@ class ProductController extends Controller
         $product->delete();
 
         return response()->json(['message' => 'Product deleted successfully']);
+    }
+
+    public function deleteImage($productId, $imageId)
+    {
+        $product = Product::findOrFail($productId);
+        $image = ProductImage::findOrFail($imageId);
+
+        if ($image->product_id != $productId) {
+            return response()->json(['error' => 'Image does not belong to this product'], 403);
+        }
+
+        // Delete the file from public directory
+        $filePath = public_path($image->image_url);
+        if (file_exists($filePath)) {
+            unlink($filePath);
+        }
+
+        $image->delete();
+
+        return response()->json(['message' => 'Image deleted successfully']);
     }
 }

@@ -78,30 +78,26 @@ class DashboardController extends Controller
             $salesData = [];
             for ($i = 0; $i < 7; $i++) {
                 $date = now()->startOfWeek()->addDays($i);
-                $value = Order::whereHas('payment', function($q) {
-                    $q->where('status', 'Success');
-                })
-                ->whereDate('created_at', $date)
-                ->sum('total_price') ?? 0;
+                $value = Order::whereDate('created_at', $date)
+                    ->whereIn('status', ['Delivered', 'Shipping', 'Packaging'])
+                    ->sum('total_price') ?? 0;
                 
                 $salesData[] = [
                     'label' => $date->format('D'),
-                    'value' => $value,
+                    'value' => (float)$value,
                 ];
             }
         } elseif ($timeFrame === 'year') {
             $salesData = [];
             for ($i = 1; $i <= 12; $i++) {
-                $value = Order::whereHas('payment', function($q) {
-                    $q->where('status', 'Success');
-                })
-                ->whereMonth('created_at', $i)
-                ->whereYear('created_at', now()->year)
-                ->sum('total_price') ?? 0;
+                $value = Order::whereMonth('created_at', $i)
+                    ->whereYear('created_at', now()->year)
+                    ->whereIn('status', ['Delivered', 'Shipping', 'Packaging'])
+                    ->sum('total_price') ?? 0;
                 
                 $salesData[] = [
                     'label' => Carbon::create(now()->year, $i, 1)->format('M'),
-                    'value' => $value,
+                    'value' => (float)$value,
                 ];
             }
         } else { // month
@@ -112,25 +108,31 @@ class DashboardController extends Controller
                 $weekStart = now()->startOfMonth()->addWeeks($week - 1);
                 $weekEnd = $weekStart->copy()->addDays(6);
                 
-                $value = Order::whereHas('payment', function($q) {
-                    $q->where('status', 'Success');
-                })
-                ->whereBetween('created_at', [$weekStart, $weekEnd])
-                ->sum('total_price') ?? 0;
+                $value = Order::whereBetween('created_at', [$weekStart, $weekEnd])
+                    ->whereIn('status', ['Delivered', 'Shipping', 'Packaging'])
+                    ->sum('total_price') ?? 0;
                 
                 $salesData[] = [
                     'label' => 'Week ' . $week,
-                    'value' => $value,
+                    'value' => (float)$value,
                 ];
             }
         }
 
-        // Best sellers
+        // Best sellers - filter by rating >= 4.5, sort by rating descending, limit to 5
         $bestSellers = Product::with('images')
             ->withCount('orderDetails')
-            ->orderBy('order_details_count', 'desc')
-            ->limit(5)
             ->get()
+            ->filter(function($product) {
+                // Filter products with rating >= 4.5
+                $rating = (float)($product->average_rating ?? 0);
+                return $rating >= 4.5;
+            })
+            ->sortByDesc(function($product) {
+                // Sort by rating descending
+                return (float)($product->average_rating ?? 0);
+            })
+            ->take(5)
             ->map(function($product) {
                 return [
                     'product_id' => $product->product_id,
@@ -139,7 +141,8 @@ class DashboardController extends Controller
                     'stock' => $product->stock_30ml ?? 0,
                     'image' => $product->images->first()?->image_url,
                 ];
-            });
+            })
+            ->values();
 
         // Recent orders
         $recentOrders = Order::with('user', 'details.product.images', 'payment')
