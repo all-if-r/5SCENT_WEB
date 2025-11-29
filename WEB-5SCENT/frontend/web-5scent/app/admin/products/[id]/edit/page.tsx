@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import AdminLayout from '@/components/AdminLayout';
 import api from '@/lib/api';
-import { useToast } from '@/contexts/ToastContext';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 
 interface ProductImage {
@@ -33,7 +32,6 @@ export default function EditProductPage() {
   const router = useRouter();
   const params = useParams();
   const productId = params.id as string;
-  const { showToast } = useToast();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
@@ -83,7 +81,7 @@ export default function EditProductPage() {
 
       if (productData.images) {
         setExistingImages(productData.images);
-        const previews = [null, null, null, null];
+        const previews: (string | null)[] = [null, null, null, null];
         productData.images.forEach((img: ProductImage) => {
           if (img.is_50ml === 1) {
             previews[0] = img.image_url;
@@ -152,27 +150,9 @@ export default function EditProductPage() {
       updateData.append('stock_50ml', formData.stock_50ml);
       updateData.append('_method', 'PUT');
 
-      // Create slug from product name
-      const perfumeSlug = formData.name
-        .toLowerCase()
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9-]/g, '')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '');
-
-      // Handle image uploads with proper naming and slot identification
-      const imageSlotMap: { [key: number]: string } = {
-        0: `${perfumeSlug}50ml`,   // 50ml primary
-        1: `${perfumeSlug}30ml`,   // 30ml secondary
-        2: `additional${perfumeSlug}1`, // Additional 1
-        3: `additional${perfumeSlug}2`, // Additional 2
-      };
-
       uploadedImages.forEach((image, index) => {
         if (image) {
-          updateData.append('images', image);
-          updateData.append(`image_slot[${index}]`, index.toString());
-          updateData.append(`image_name[${index}]`, imageSlotMap[index]);
+          updateData.append(`images`, image);
         }
       });
 
@@ -182,13 +162,10 @@ export default function EditProductPage() {
         },
       });
 
-      showToast('Product updated successfully', 'success');
       router.push('/admin/products');
     } catch (err) {
       console.error('Error updating product:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to update product';
-      setError(errorMessage);
-      showToast(errorMessage, 'error');
+      setError('Failed to update product');
     } finally {
       setSubmitting(false);
     }
@@ -324,7 +301,7 @@ export default function EditProductPage() {
                   </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Price 30ml (Rp)
@@ -351,30 +328,14 @@ export default function EditProductPage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-black focus:border-transparent transition-all"
                     />
                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Stock Quantity 30 ml
+                      Stock Quantity
                     </label>
                     <input
                       type="number"
                       name="stock_30ml"
                       value={formData.stock_30ml}
-                      onChange={handleInputChange}
-                      placeholder="0"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-black focus:border-transparent transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Stock Quantity 50 ml
-                    </label>
-                    <input
-                      type="number"
-                      name="stock_50ml"
-                      value={formData.stock_50ml}
                       onChange={handleInputChange}
                       placeholder="0"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-black focus:border-transparent transition-all"
@@ -386,82 +347,59 @@ export default function EditProductPage() {
 
             {/* Media Management Section */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-4">Product Images (Max 4)</h3>
-
-              <div className="grid grid-cols-4 gap-4">
-                {[0, 1, 2, 3].map((index) => {
-                  const slotLabel = 
-                    index === 0 ? '50ml - Image 1 (Primary)' :
-                    index === 1 ? '30ml - Image 2 (Secondary)' :
-                    index === 2 ? 'Additional - Image 3' :
-                    'Additional - Image 4';
-
-                  return (
-                    <div key={index}>
-                      <p className="text-xs font-medium text-gray-700 mb-2">{slotLabel}</p>
-                      <label className="flex flex-col items-center justify-center w-full aspect-square border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors group">
-                        {imagePreviews[index] ? (
-                          <div className="relative w-full h-full">
-                            <img
-                              src={imagePreviews[index] as string}
-                              alt={`Product ${index + 1}`}
-                              className="w-full h-full object-cover rounded-lg"
-                            />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-lg transition-colors flex items-start justify-end p-2">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  const previews = [...imagePreviews];
-                                  previews[index] = null;
-                                  setImagePreviews(previews);
-                                  const newImages = [...uploadedImages];
-                                  newImages[index] = null as any;
-                                  setUploadedImages(newImages.filter(Boolean));
-                                }}
-                                className="bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                title="Delete image"
-                              >
-                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center justify-center gap-2">
-                            <svg
-                              className="w-6 h-6 text-gray-400"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M12 4v16m8-8H4"
-                              />
-                            </svg>
-                            <span className="text-xs text-gray-600">Upload</span>
-                          </div>
-                        )}
-                        <input
-                          type="file"
-                          accept="image/png,image/jpeg,image/jpg"
-                          onChange={(e) => handleImageUpload(e, index)}
-                          className="hidden"
-                        />
-                      </label>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <p className="text-xs text-gray-500 mt-3">
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">Product Images (Max 4)</h3>
+              <p className="text-xs text-gray-600 mb-4">
                 Upload images: 50ml primary, 30ml secondary, and 2 additional images (PNG, JPG - max. 10MB each).
               </p>
+
+              <div className="grid grid-cols-4 gap-3">
+                {[0, 1, 2, 3].map((index) => (
+                  <div key={index}>
+                    <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                      {imagePreviews[index] ? (
+                        <div className="relative w-full h-full">
+                          <img
+                            src={imagePreviews[index] as string}
+                            alt={`Product ${index + 1}`}
+                            className="w-full h-full object-cover rounded-lg"
+                          />
+                          <div className="absolute inset-0 bg-black/0 hover:bg-black/10 rounded-lg transition-colors flex items-center justify-center">
+                            <span className="text-xs text-white bg-black/50 px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity">
+                              Change
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center">
+                          <svg
+                            className="w-6 h-6 text-gray-400 mb-2"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 4v16m8-8H4"
+                            />
+                          </svg>
+                          <span className="text-xs text-gray-600">Upload</span>
+                        </div>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/jpg"
+                        onChange={(e) => handleImageUpload(e, index)}
+                        className="hidden"
+                      />
+                    </label>
+                    <p className="text-xs text-gray-500 text-center mt-1">
+                      {index === 0 ? '50ml' : index === 1 ? '30ml' : 'Additional'}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
           </form>
 
@@ -470,7 +408,7 @@ export default function EditProductPage() {
             <button
               type="button"
               onClick={() => router.push('/admin/products')}
-              className="flex-1 px-6 py-2 border border-gray-300 text-gray-900 rounded-full font-medium hover:bg-gray-100 transition-colors"
+              className="flex-1 px-4 py-2 border border-gray-300 text-gray-900 rounded-lg font-medium hover:bg-gray-100 transition-colors"
             >
               Cancel
             </button>
@@ -478,7 +416,7 @@ export default function EditProductPage() {
               type="submit"
               form="edit-product-form"
               disabled={submitting}
-              className="flex-1 px-6 py-2 bg-black text-white rounded-full font-medium hover:bg-gray-900 disabled:opacity-50 transition-colors"
+              className="flex-1 px-4 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-900 disabled:opacity-50 transition-colors"
             >
               {submitting ? 'Updating...' : 'Update Product'}
             </button>

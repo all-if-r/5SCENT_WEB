@@ -55,10 +55,13 @@ export default function AdminLayout({ children, onRefresh, refreshing }: AdminLa
 
   const isDashboard = pathname?.startsWith('/admin/dashboard');
   const isProducts = pathname?.startsWith('/admin/products');
+  const isOrders = pathname?.startsWith('/admin/orders');
 
-  const headerTitle = isProducts ? 'Product Management' : 'Dashboard Overview';
+  const headerTitle = isProducts ? 'Product Management' : isOrders ? 'Order Management' : 'Dashboard Overview';
   const headerSubtitle = isProducts
     ? 'Manage your perfume inventory'
+    : isOrders
+    ? 'View and manage customer orders'
     : 'Monitor your store performance at a glance';
 
   if (!admin) {

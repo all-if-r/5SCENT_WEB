@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/AdminLayout';
 import api from '@/lib/api';
-import { useToast } from '@/contexts/ToastContext';
 import {
   MagnifyingGlassIcon,
   PencilIcon,
@@ -56,46 +55,7 @@ interface FormData {
   stock_50ml: string;
 }
 
-const createEmptyImageSlots = (): (ProductImage | null)[] => [null, null, null, null];
-const createEmptyUploadSlots = (): (File | null)[] => [null, null, null, null];
-const createEmptyPreviewSlots = (): (string | null)[] => [null, null, null, null];
-
-const resolveSlotFromImage = (img: ProductImage): number | null => {
-  const filename = (img.image_url || '').toLowerCase();
-
-  if (img.is_50ml === 1 || filename.includes('50ml')) return 0;
-  if (filename.includes('30ml')) return 1;
-  if (/additional.*1/.test(filename)) return 2;
-  if (/additional.*2/.test(filename)) return 3;
-
-  return null;
-};
-
-const mapImagesToSlots = (images: ProductImage[] = []): (ProductImage | null)[] => {
-  const slots: (ProductImage | null)[] = createEmptyImageSlots();
-  const sortedImages = [...images].sort((a, b) => (a.image_id || 0) - (b.image_id || 0));
-
-  sortedImages.forEach((img) => {
-    const slot = resolveSlotFromImage(img);
-
-    if (slot !== null && slots[slot] == null) {
-      slots[slot] = img;
-      return;
-    }
-
-    for (let i = 0; i < slots.length; i++) {
-      if (!slots[i]) {
-        slots[i] = img;
-        break;
-      }
-    }
-  });
-
-  return slots;
-};
-
 export default function ProductsPage() {
-  const { showToast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -123,9 +83,9 @@ export default function ProductsPage() {
     stock_50ml: '',
   });
 
-  const [uploadedImages, setUploadedImages] = useState<(File | null)[]>(createEmptyUploadSlots);
-  const [imagePreviews, setImagePreviews] = useState<(string | null)[]>(createEmptyPreviewSlots);
-  const [existingImages, setExistingImages] = useState<(ProductImage | null)[]>(createEmptyImageSlots);
+  const [uploadedImages, setUploadedImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<(string | null)[]>([null, null, null, null]);
+  const [existingImages, setExistingImages] = useState<ProductImage[]>([]);
   const [imagesToDelete, setImagesToDelete] = useState<number[]>([]);
 
   const categories = ['All Categories', 'Day', 'Night'];
@@ -183,9 +143,9 @@ export default function ProductsPage() {
       stock_30ml: '',
       stock_50ml: '',
     });
-    setUploadedImages(createEmptyUploadSlots());
-    setImagePreviews(createEmptyPreviewSlots());
-    setExistingImages(createEmptyImageSlots());
+    setUploadedImages([]);
+    setImagePreviews([null, null, null, null]);
+    setExistingImages([]);
     setImagesToDelete([]);
     setModalError(null);
     setShowAddModal(true);
@@ -210,11 +170,22 @@ export default function ProductsPage() {
         stock_50ml: productData.stock_50ml?.toString() || '',
       });
 
-          const slotImages = mapImagesToSlots(productData.images || []);
-          setExistingImages(slotImages);
-          setImagePreviews(slotImages.map((img) => img ? img.image_url : null));
-          setUploadedImages(createEmptyUploadSlots());
-          setImagesToDelete([]);
+      setExistingImages(productData.images || []);
+      const previews: (string | null)[] = [null, null, null, null];
+      productData.images?.forEach((img: ProductImage) => {
+        if (img.is_50ml === 1) {
+          previews[0] = img.image_url;
+        } else if (!previews[1]) {
+          previews[1] = img.image_url;
+        } else if (!previews[2]) {
+          previews[2] = img.image_url;
+        } else if (!previews[3]) {
+          previews[3] = img.image_url;
+        }
+      });
+      setImagePreviews(previews);
+      setUploadedImages([]);
+      setImagesToDelete([]);
       setModalError(null);
       setShowEditModal(true);
     } catch (error) {
@@ -227,28 +198,18 @@ export default function ProductsPage() {
     setShowAddModal(false);
     setShowEditModal(false);
     setEditingProduct(null);
-    setExistingImages(createEmptyImageSlots());
-    setUploadedImages(createEmptyUploadSlots());
-    setImagePreviews(createEmptyPreviewSlots());
+    setExistingImages([]);
     setImagesToDelete([]);
     setModalError(null);
   };
 
   const handleDeleteExistingImage = (imageId: number, index: number) => {
-    if (!imagesToDelete.includes(imageId)) {
-      setImagesToDelete([...imagesToDelete, imageId]);
-    }
+    setImagesToDelete([...imagesToDelete, imageId]);
     const previews = [...imagePreviews];
     previews[index] = null;
     setImagePreviews(previews);
     
-    const updatedExisting = [...existingImages];
-    updatedExisting[index] = null;
-    setExistingImages(updatedExisting);
-
-    const newUploads = [...uploadedImages];
-    newUploads[index] = null;
-    setUploadedImages(newUploads);
+    setExistingImages(existingImages.filter(img => img.image_id !== imageId));
   };
 
   const handleInputChange = (
@@ -295,74 +256,88 @@ export default function ProductsPage() {
       submitData.append('price_30ml', formData.price_30ml);
       submitData.append('price_50ml', formData.price_50ml);
       submitData.append('stock_30ml', formData.stock_30ml);
-      submitData.append('stock_50ml', formData.stock_50ml);
+      submitData.append('stock_50ml', formData.stock_50ml || formData.stock_30ml);
 
-      // Create slug from product name
-      const perfumeSlug = formData.name
-        .toLowerCase()
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9-]/g, '')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '');
-
-      // Handle image uploads with proper naming and slot identification
-      const imageSlotMap: { [key: number]: string } = {
-        0: `${perfumeSlug}50ml`,   // 50ml primary
-        1: `${perfumeSlug}30ml`,   // 30ml secondary
-        2: `additional${perfumeSlug}1`, // Additional 1
-        3: `additional${perfumeSlug}2`, // Additional 2
-      };
-
-      // Add image metadata for each slot
-      uploadedImages.forEach((image, index) => {
-        if (image) {
-          submitData.append(`images[${index}]`, image);
-          submitData.append(`image_slot[${index}]`, index.toString());
-          submitData.append(`image_name[${index}]`, imageSlotMap[index]);
-        }
+      // Log form data for debugging
+      console.log('Form Data:', {
+        name: formData.name,
+        description: formData.description,
+        top_notes: formData.top_notes,
+        middle_notes: formData.middle_notes,
+        base_notes: formData.base_notes,
+        category: formData.category,
+        price_30ml: formData.price_30ml,
+        price_50ml: formData.price_50ml,
+        stock_30ml: formData.stock_30ml,
+        stock_50ml: formData.stock_50ml,
       });
 
-      // Add images to delete
-      if (imagesToDelete.length > 0) {
-        submitData.append('images_to_delete', JSON.stringify(imagesToDelete));
-      }
-
       if (editingProduct) {
-        submitData.append('_method', 'PUT');
-        // For edit: delete marked images first
+        console.log('Editing product:', editingProduct.product_id);
+        console.log('Uploaded images array:', uploadedImages);
+        console.log('Uploaded images count:', uploadedImages.filter(Boolean).length);
+        console.log('Images to delete:', imagesToDelete);
+        
+        // Add images from uploadedImages array
+        uploadedImages.forEach((image) => {
+          if (image) {
+            console.log(`Adding image:`, image.name, image.size);
+            submitData.append('images[]', image);
+          }
+        });
+        
+        // Delete marked images before updating product
         for (const imageId of imagesToDelete) {
           try {
+            console.log(`Deleting image ${imageId}`);
             await api.delete(`/admin/products/${editingProduct.product_id}/images/${imageId}`);
           } catch (err) {
             console.error(`Failed to delete image ${imageId}:`, err);
           }
         }
         
-        await api.post(`/admin/products/${editingProduct.product_id}`, submitData, {
+        // Log FormData contents
+        console.log('FormData contents:');
+        for (let [key, value] of submitData.entries()) {
+          console.log(`${key}:`, value instanceof File ? `File: ${value.name}` : value);
+        }
+        
+        // Use axios PUT method instead of POST with _method
+        console.log('Sending PUT request to:', `/admin/products/${editingProduct.product_id}`);
+        const response = await api.put(`/admin/products/${editingProduct.product_id}`, submitData, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
         });
-        
-        showToast('Product updated successfully', 'success');
+        console.log('Response:', response.data);
       } else {
         if (uploadedImages.filter((img) => img).length === 0) {
           setModalError('Please upload at least one product image');
           return;
         }
-        
-        await api.post('/admin/products', submitData, {
+        console.log('Creating new product with images:', uploadedImages.filter(Boolean).length);
+        uploadedImages.forEach((image) => {
+          if (image) {
+            console.log(`Adding image:`, image.name, image.size);
+            submitData.append('images[]', image);
+          }
+        });
+        const response = await api.post('/admin/products', submitData, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
         });
-        
-        showToast('Product added successfully', 'success');
+        console.log('Response:', response.data);
       }
 
       await fetchProducts();
       closeModals();
     } catch (err: any) {
+      console.error('Error saving product:', err);
+      console.error('Response status:', err.response?.status);
+      console.error('Response data:', err.response?.data);
+      console.error('Response headers:', err.response?.headers);
+      
       const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to save product';
       const errors = err.response?.data?.errors;
       
@@ -371,13 +346,10 @@ export default function ProductsPage() {
           .map(([field, messages]: any) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
           .join('\n');
         setModalError(`Validation errors:\n${errorList}`);
-        showToast('Validation errors occurred', 'error');
       } else if (err.response?.data) {
         setModalError(`Error: ${JSON.stringify(err.response.data)}`);
-        showToast(errorMessage, 'error');
       } else {
         setModalError(errorMessage);
-        showToast(errorMessage, 'error');
       }
     } finally {
       setSubmitting(false);
@@ -386,13 +358,11 @@ export default function ProductsPage() {
 
   const handleDeleteProduct = async (productId: number) => {
     try {
-      await api.delete(`/admin/products/${productId}`);
+      await api.delete(`/products/${productId}`);
       setProducts(products.filter((p) => p.product_id !== productId));
       setDeleteConfirm(null);
-      showToast('Product deleted successfully', 'success');
     } catch (error) {
       console.error('Error deleting product:', error);
-      showToast('Failed to delete product', 'error');
     }
   };
 
@@ -412,6 +382,23 @@ export default function ProductsPage() {
   return (
     <AdminLayout>
       <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <div className="bg-white border-b border-gray-200 px-8 py-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Product Management</h1>
+              <p className="text-gray-600">Manage your perfume inventory</p>
+            </div>
+            <p className="text-sm text-gray-600">
+              📅 {new Date().toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+              })}
+            </p>
+          </div>
+        </div>
+
         {/* Control Bar */}
         <div className="bg-white border-b border-gray-200 px-8 py-4">
           <div className="flex items-center gap-4">
@@ -698,7 +685,7 @@ export default function ProductsPage() {
                     </select>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">
                         Price 30ml (Rp)
@@ -727,31 +714,14 @@ export default function ProductsPage() {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-black focus:border-transparent transition-all"
                       />
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">
-                        Stock Quantity 30 ml
+                        Stock Quantity
                       </label>
                       <input
                         type="number"
                         name="stock_30ml"
                         value={formData.stock_30ml}
-                        onChange={handleInputChange}
-                        placeholder="0"
-                        required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-black focus:border-transparent transition-all"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
-                        Stock Quantity 50 ml
-                      </label>
-                      <input
-                        type="number"
-                        name="stock_50ml"
-                        value={formData.stock_50ml}
                         onChange={handleInputChange}
                         placeholder="0"
                         required
@@ -764,25 +734,19 @@ export default function ProductsPage() {
 
               {/* Media Management Section */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-4">Product Images (Max 4)</h3>
+                <h3 className="text-sm font-semibold text-gray-900 mb-2">Product Images (Max 4)</h3>
+                <p className="text-xs text-gray-600 mb-4">
+                  Upload images: 50ml primary, 30ml secondary, and 2 additional images (PNG, JPG - max. 10MB each).
+                </p>
 
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-4 gap-3">
                   {[0, 1, 2, 3].map((index) => {
-                    const slotLabel = 
-                      index === 0 ? '50ml - Image 1 (Primary)' :
-                      index === 1 ? '30ml - Image 2 (Secondary)' :
-                      index === 2 ? 'Additional - Image 3' :
-                      'Additional - Image 4';
-
                     const existingImage = existingImages[index];
-                    const isDeleted = existingImage?.image_id
-                      ? imagesToDelete.includes(existingImage.image_id)
-                      : false;
+                    const isDeleted = imagesToDelete.includes(existingImage?.image_id);
                     
                     return (
-                      <div key={index}>
-                        <p className="text-xs font-medium text-gray-700 mb-2">{slotLabel}</p>
-                        <label className="flex flex-col items-center justify-center w-full aspect-square border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors group">
+                      <div key={index} className="relative">
+                        <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors group">
                           {imagePreviews[index] && !isDeleted ? (
                             <div className="relative w-full h-full">
                               <img
@@ -803,8 +767,8 @@ export default function ProductsPage() {
                                       previews[index] = null;
                                       setImagePreviews(previews);
                                       const newUploaded = [...uploadedImages];
-                                      newUploaded[index] = null;
-                                      setUploadedImages(newUploaded);
+                                      newUploaded[index] = null as any;
+                                      setUploadedImages(newUploaded.filter(Boolean));
                                     }
                                   }}
                                   className="bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -817,9 +781,9 @@ export default function ProductsPage() {
                               </div>
                             </div>
                           ) : (
-                            <div className="flex flex-col items-center justify-center gap-2">
+                            <div className="flex flex-col items-center justify-center">
                               <svg
-                                className="w-6 h-6 text-gray-400"
+                                className="w-6 h-6 text-gray-400 mb-2"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -841,14 +805,13 @@ export default function ProductsPage() {
                             className="hidden"
                           />
                         </label>
+                        <p className="text-xs text-gray-500 text-center mt-1">
+                          {index === 0 ? '50ml' : index === 1 ? '30ml' : 'Additional'}
+                        </p>
                       </div>
                     );
                   })}
                 </div>
-
-                <p className="text-xs text-gray-500 mt-3">
-                  Upload images: 50ml primary, 30ml secondary, and 2 additional images (PNG, JPG - max. 10MB each).
-                </p>
               </div>
 
               {/* Modal Footer */}
@@ -856,14 +819,14 @@ export default function ProductsPage() {
                 <button
                   type="button"
                   onClick={() => closeModals()}
-                  className="flex-1 px-6 py-2 border border-gray-300 text-gray-900 rounded-full font-medium hover:bg-gray-100 transition-colors"
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-900 rounded-lg font-medium hover:bg-gray-100 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 px-6 py-2 bg-black text-white rounded-full font-medium hover:bg-gray-900 disabled:opacity-50 transition-colors"
+                  className="flex-1 px-4 py-2 bg-black text-white rounded-lg font-medium hover:bg-gray-900 disabled:opacity-50 transition-colors"
                 >
                   {submitting ? (editingProduct ? 'Updating...' : 'Creating...') : (editingProduct ? 'Update Product' : 'Add Product')}
                 </button>
