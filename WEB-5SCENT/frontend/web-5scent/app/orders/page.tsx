@@ -12,7 +12,7 @@ import Footer from '@/components/Footer';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import api from '@/lib/api';
-import { formatCurrency, roundRating } from '@/lib/utils';
+import { formatCurrency, roundRating, formatOrderId } from '@/lib/utils';
 import Image from 'next/image';
 
 interface OrderItem {
@@ -280,11 +280,6 @@ function OrderHistoryContent() {
   const formatOrderDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' });
-  };
-
-  const formatOrderCode = (orderId: number, createdAt?: string) => {
-    const year = createdAt ? new Date(createdAt).getFullYear() : 2024;
-    return `ORD-${year}-${String(orderId).padStart(3, '0')}`;
   };
 
   const handleOpenDetails = (order: OrderData) => {
@@ -569,7 +564,7 @@ function OrderHistoryContent() {
                 {/* Header Row */}
                 <div className="flex items-start justify-between mb-6">
                   <div>
-                    <h3 className="text-base font-bold text-gray-900">Order #{formatOrderCode(order.order_id, order.created_at)}</h3>
+                    <h3 className="text-base font-bold text-gray-900">Order #{formatOrderId(order.order_id, order.created_at)}</h3>
                     <p className="text-xs text-gray-500 mt-1">{formatOrderDate(order.created_at)}</p>
                   </div>
                   <div className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
@@ -692,7 +687,7 @@ function OrderHistoryContent() {
                 {/* Modal Content */}
                 <div className="p-6 space-y-4">
                   {/* Order Code */}
-                  <div className="text-sm text-gray-600">Order #{formatOrderCode(modal.order.order_id, modal.order.created_at)}</div>
+                  <div className="text-sm text-gray-600">Order #{formatOrderId(modal.order.order_id, modal.order.created_at)}</div>
 
                   {/* Customer Information */}
                   <div className="bg-gray-100 rounded-2xl p-6 space-y-4">

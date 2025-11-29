@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import api from '@/lib/api';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, formatOrderId } from '@/lib/utils';
 import { useToast } from '@/contexts/ToastContext';
 
 interface Order {
@@ -90,7 +90,7 @@ export default function MyOrdersTab() {
             <div key={order.order_id} className="border border-gray-200 rounded-lg p-4">
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <p className="font-semibold">Order #{order.order_id}</p>
+                  <p className="font-semibold">Order #{formatOrderId(order.order_id, order.created_at)}</p>
                   <p className="text-sm text-gray-500">{formatDate(order.created_at)}</p>
                   {order.tracking_number && (
                     <p className="text-sm text-gray-600 mt-1">

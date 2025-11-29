@@ -150,12 +150,16 @@ class DashboardController extends Controller
             ->limit(10)
             ->get()
             ->map(function($order) {
+                $createdDate = $order->created_at;
+                if (is_string($createdDate)) {
+                    $createdDate = \Carbon\Carbon::parse($createdDate);
+                }
                 return [
                     'order_id' => $order->order_id,
                     'order_no' => '#ORD-' . str_pad($order->order_id, 4, '0', STR_PAD_LEFT),
                     'customer_name' => $order->user?->name ?? 'Unknown',
                     'total' => $order->total_price ?? 0,
-                    'date' => $order->created_at->format('Y-m-d'),
+                    'date' => $createdDate->format('Y-m-d'),
                     'status' => $order->status ?? 'Pending',
                     'items_count' => $order->details->count(),
                 ];
@@ -181,6 +185,17 @@ class DashboardController extends Controller
             $query->where('status', $request->status);
         }
 
+        // Search by order_id or customer name
+        if ($request->has('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('order_id', 'LIKE', "%{$search}%")
+                  ->orWhereHas('user', function($userQuery) use ($search) {
+                      $userQuery->where('name', 'LIKE', "%{$search}%");
+                  });
+            });
+        }
+
         $orders = $query->orderBy('created_at', 'desc')->paginate(20);
 
         return response()->json($orders);
@@ -189,7 +204,7 @@ class DashboardController extends Controller
     public function updateOrderStatus(Request $request, $id)
     {
         $validated = $request->validate([
-            'status' => 'required|in:Pending,Packaging,Shipping,Delivered,Cancel',
+            'status' => 'required|in:Pending,Packaging,Shipping,Delivered,Cancel,Cancelled',
             'tracking_number' => 'nullable|string|max:100',
         ]);
 
@@ -199,7 +214,7 @@ class DashboardController extends Controller
             'tracking_number' => $validated['tracking_number'] ?? $order->tracking_number,
         ]);
 
-        return response()->json($order->load('user', 'details.product'));
+        return response()->json($order->load('user', 'details.product.images', 'payment'));
     }
 
     public function salesReport(Request $request)
