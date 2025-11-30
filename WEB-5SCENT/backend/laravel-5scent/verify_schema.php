@@ -50,12 +50,12 @@ while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
     echo "  - " . $row['Field'] . " (" . $row['Type'] . ")\n";
 }
 
-// Show rating columns
-echo "\nRating table columns:\n";
-$result = $pdo->query("SHOW COLUMNS FROM rating");
+echo "\n=== POS_TRANSACTION TABLE COLUMNS ===\n";
+$result = $pdo->query("SHOW COLUMNS FROM pos_transaction");
 while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
-    echo "  - " . $row['Field'] . " (" . $row['Type'] . ")\n";
+    echo "  - " . $row['Field'] . " (" . $row['Type'] . ") " . ($row['Null'] == 'YES' ? '[NULL]' : '[NOT NULL]') . "\n";
 }
+
 
 echo "\n✅ Schema verification complete!\n";
 ?>

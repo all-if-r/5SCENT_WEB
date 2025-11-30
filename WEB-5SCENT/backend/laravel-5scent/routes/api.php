@@ -90,9 +90,11 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
 
     // POS
     Route::prefix('pos')->group(function () {
+        Route::get('/products/search', [PosController::class, 'searchProducts']);
         Route::post('/transactions', [PosController::class, 'createTransaction']);
         Route::get('/transactions', [PosController::class, 'indexTransactions']);
         Route::get('/transactions/{id}', [PosController::class, 'getTransaction']);
+        Route::get('/transactions/{transactionId}/receipt', [PosController::class, 'generateReceipt']);
     });
 });
 

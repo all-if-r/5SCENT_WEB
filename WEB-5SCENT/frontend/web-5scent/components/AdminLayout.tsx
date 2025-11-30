@@ -12,12 +12,12 @@ import {
   HomeIcon,
   ShoppingBagIcon,
   ShoppingCartIcon,
-  DocumentChartBarIcon,
   StarIcon,
   Cog6ToothIcon,
   ArrowTopRightOnSquareIcon,
   ArrowLeftOnRectangleIcon,
 } from '@heroicons/react/24/outline';
+import { LuCalculator } from 'react-icons/lu';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -36,8 +36,8 @@ export default function AdminLayout({ children, onRefresh, refreshing }: AdminLa
     { name: 'Dashboard', href: '/admin/dashboard', icon: HomeIcon },
     { name: 'Products', href: '/admin/products', icon: ShoppingBagIcon },
     { name: 'Orders', href: '/admin/orders', icon: ShoppingCartIcon },
-    { name: 'POS Tool', href: '/admin/pos', icon: DocumentChartBarIcon },
-    { name: 'Sales Reports', href: '/admin/reports', icon: DocumentChartBarIcon },
+    { name: 'POS Tool', href: '/admin/pos', icon: LuCalculator },
+    { name: 'Sales Reports', href: '/admin/reports', icon: Cog6ToothIcon },
     { name: 'Reviews', href: '/admin/reviews', icon: StarIcon },
     { name: 'Settings', href: '/admin/settings', icon: Cog6ToothIcon },
   ];
@@ -56,12 +56,15 @@ export default function AdminLayout({ children, onRefresh, refreshing }: AdminLa
   const isDashboard = pathname?.startsWith('/admin/dashboard');
   const isProducts = pathname?.startsWith('/admin/products');
   const isOrders = pathname?.startsWith('/admin/orders');
+  const isPOS = pathname?.startsWith('/admin/pos');
 
-  const headerTitle = isProducts ? 'Product Management' : isOrders ? 'Order Management' : 'Dashboard Overview';
+  const headerTitle = isProducts ? 'Product Management' : isOrders ? 'Order Management' : isPOS ? 'POS Tool' : 'Dashboard Overview';
   const headerSubtitle = isProducts
     ? 'Manage your perfume inventory'
     : isOrders
     ? 'View and manage customer orders'
+    : isPOS
+    ? 'Process offline sales and generate receipts'
     : 'Monitor your store performance at a glance';
 
   if (!admin) {
