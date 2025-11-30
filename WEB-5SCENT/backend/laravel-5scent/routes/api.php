@@ -94,7 +94,7 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
         Route::post('/transactions', [PosController::class, 'createTransaction']);
         Route::get('/transactions', [PosController::class, 'indexTransactions']);
         Route::get('/transactions/{id}', [PosController::class, 'getTransaction']);
-        Route::get('/transactions/{transactionId}/receipt', [PosController::class, 'generateReceipt']);
+        Route::get('/transactions/{id}/receipt', [PosController::class, 'generateReceipt']);
     });
 });
 

@@ -11,6 +11,7 @@ class PosTransaction extends Model
 
     protected $table = 'pos_transaction';
     protected $primaryKey = 'transaction_id';
+    public $timestamps = false;
 
     protected $fillable = [
         'admin_id',

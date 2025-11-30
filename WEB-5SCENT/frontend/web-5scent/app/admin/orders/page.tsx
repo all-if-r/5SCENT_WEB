@@ -7,7 +7,6 @@ import { ChevronDownIcon, EyeIcon } from '@heroicons/react/24/outline';
 import { MdContentCopy, MdCheckCircle } from 'react-icons/md';
 import { FiPackage, FiTruck, FiCheck } from 'react-icons/fi';
 import { useToast } from '@/contexts/ToastContext';
-import { formatOrderId } from '@/lib/utils';
 
 interface OrderItem {
   detail_id: number;
@@ -19,9 +18,9 @@ interface OrderItem {
     name: string;
     product_id: number;
     images?: Array<{
-      image_id: number;
+      image_id?: number;
       image_url: string;
-      is_50ml: number;
+      is_50ml?: boolean;
     }>;
   };
 }
@@ -32,7 +31,6 @@ interface Order {
   status: string;
   tracking_number: string | null;
   total_price: number;
-  subtotal?: number;
   shipping_address: string;
   created_at: string;
   payment_method?: string;
@@ -61,7 +59,6 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState<string>('');
-  const [searchQuery, setSearchQuery] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalOrders, setTotalOrders] = useState(0);
@@ -85,14 +82,13 @@ export default function OrdersPage() {
 
   useEffect(() => {
     fetchOrders();
-  }, [selectedStatus, searchQuery, currentPage]);
+  }, [selectedStatus, currentPage]);
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
       if (selectedStatus) params.append('status', selectedStatus);
-      if (searchQuery) params.append('search', searchQuery);
       params.append('page', currentPage.toString());
 
       const response = await api.get<PaginatedResponse>(`/admin/dashboard/orders?${params}`);
@@ -134,7 +130,7 @@ export default function OrdersPage() {
 
     try {
       setUpdating(true);
-      const response = await api.put(`/admin/dashboard/orders/${selectedOrder.order_id}/status`, {
+      await api.put(`/admin/dashboard/orders/${selectedOrder.order_id}/status`, {
         status: newStatus,
         tracking_number: trackingNumber || null,
       });
@@ -146,13 +142,11 @@ export default function OrdersPage() {
           : order
       ));
 
-      // Show success notification
-      showToast(`Order status updated to ${newStatus}`, 'success');
+      showToast('Order status updated successfully', 'success');
       closeStatusModal();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error updating order status:', error);
-      const errorMessage = error.response?.data?.message || 'Failed to update order status';
-      showToast(errorMessage, 'error');
+      showToast('Failed to update order status', 'error');
     } finally {
       setUpdating(false);
     }
@@ -172,6 +166,14 @@ export default function OrdersPage() {
     });
   };
 
+  const formatOrderDate = (date: string) => {
+    const d = new Date(date);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -180,58 +182,30 @@ export default function OrdersPage() {
     }).format(value);
   };
 
-  const formatPaymentMethod = (method: string | undefined): string => {
-    if (!method) return 'Unknown';
-    // Handle QRIS special case - always uppercase
-    if (method.toUpperCase() === 'QRIS') return 'QRIS';
-    return method
-      .split('_')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(' ');
-  };
-
   return (
     <AdminLayout>
       <div className="min-h-screen bg-gray-50 p-8">
-          {/* Filters and Search */}
-          <div className="mb-6 flex items-end justify-between">
+          {/* Filters */}
+          <div className="mb-6 flex gap-4">
             <div className="flex-1 max-w-xs">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Filter by Status
               </label>
-              <div className="relative">
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => {
-                    setSelectedStatus(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-black focus:border-transparent appearance-none bg-white pr-10"
-                >
-                  <option value="">All Orders</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Packaging">Packaging</option>
-                  <option value="Shipping">Shipping</option>
-                  <option value="Delivered">Delivered</option>
-                  <option value="Cancel">Cancelled</option>
-                </select>
-                <ChevronDownIcon className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-600 pointer-events-none" />
-              </div>
-            </div>
-            <div className="w-80">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Search
-              </label>
-              <input
-                type="text"
-                placeholder="Search by Order ID or Customer Name..."
-                value={searchQuery}
+              <select
+                value={selectedStatus}
                 onChange={(e) => {
-                  setSearchQuery(e.target.value);
+                  setSelectedStatus(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-black focus:border-transparent bg-white"
-              />
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+              >
+                <option value="">All Orders</option>
+                <option value="Pending">Pending</option>
+                <option value="Packaging">Packaging</option>
+                <option value="Shipping">Shipping</option>
+                <option value="Delivered">Delivered</option>
+                <option value="Cancel">Cancelled</option>
+              </select>
             </div>
           </div>
 
@@ -249,7 +223,7 @@ export default function OrdersPage() {
                     <div className="flex items-start justify-between mb-6 pb-6 border-b border-gray-200">
                       <div className="flex-1">
                         <div className="text-xs text-gray-500 font-medium mb-1">Order ID</div>
-                        <div className="font-bold text-gray-900 text-lg">#{formatOrderId(order.order_id, order.created_at)}</div>
+                        <div className="font-bold text-gray-900 text-lg">#ORD-{formatOrderDate(order.created_at)}-{String(order.order_id).padStart(3, '0')}</div>
                       </div>
 
                       <div className="flex-1">
@@ -261,8 +235,8 @@ export default function OrdersPage() {
                         {/* Payment */}
                         <div>
                           <div className="text-xs text-gray-500 font-medium mb-1">Payment</div>
-                          <div className="px-3 py-1 border border-black/10 rounded-full text-sm font-medium text-gray-900 inline-block">
-                            {formatPaymentMethod(order.payment_method)}
+                          <div className="px-3 py-1 bg-gray-100 border border-gray-300 rounded-lg text-sm font-medium text-gray-900 inline-block">
+                            QRIS
                           </div>
                         </div>
 
@@ -363,12 +337,12 @@ export default function OrdersPage() {
         {/* Status Update Modal */}
         {showStatusModal && selectedOrder && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg max-w-2xl w-full shadow-xl max-h-[90vh] flex flex-col">
-              {/* Modal Header - Fixed */}
-              <div className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-start">
+            <div className="bg-white rounded-lg max-w-2xl w-full shadow-xl max-h-[90vh] overflow-y-auto">
+              {/* Modal Header */}
+              <div className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-start sticky top-0">
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900">
-                    Order #{formatOrderId(selectedOrder.order_id, selectedOrder.created_at)}
+                    Order #ORD-{formatOrderDate(selectedOrder.created_at)}-{String(selectedOrder.order_id).padStart(3, '0')}
                   </h2>
                   <p className="text-sm text-gray-600 mt-1">View and manage order details</p>
                 </div>
@@ -380,33 +354,37 @@ export default function OrdersPage() {
                 </button>
               </div>
 
-              {/* Modal Body - Scrollable */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                {/* Order Info Grid */}
-                <div className="bg-gray-50 rounded-xl p-6">
-                  <div className="grid grid-cols-2 gap-6">
-                    {/* Row 1: Order Date and Subtotal */}
+              {/* Modal Body */}
+              <div className="p-6 space-y-6">
+                {/* Order Info Grid - 2x2 Layout with Gray Background */}
+                <div className="bg-gray-100 rounded-xl p-8">
+                  <div className="grid grid-cols-2 gap-8">
+                    {/* Top Left - Order Date */}
                     <div>
-                      <div className="text-xs font-medium text-gray-600 mb-1">Order Date</div>
-                      <div className="text-base font-semibold text-gray-900">{formatDate(selectedOrder.created_at)}</div>
+                      <div className="text-sm font-medium text-gray-600 mb-1">Order Date</div>
+                      <div className="text-lg font-semibold text-gray-900">{formatDate(selectedOrder.created_at)}</div>
                     </div>
                     
-                    <div>
-                      <div className="text-xs font-medium text-gray-600 mb-1">Subtotal</div>
-                      <div className="text-base font-semibold text-gray-900">{formatCurrency(selectedOrder.subtotal || 0)}</div>
+                    {/* Top Right - Subtotal */}
+                    <div className="text-right">
+                      <div className="text-sm font-medium text-gray-600 mb-1">Subtotal</div>
+                      <div className="text-lg font-semibold text-gray-900">{formatCurrency(selectedOrder.total_price)}</div>
                     </div>
-
-                    {/* Row 2: Payment Method and Total */}
+                    
+                    {/* Bottom Left - Payment Method */}
                     <div>
-                      <div className="text-xs font-medium text-gray-600 mb-1">Payment Method</div>
-                      <div className="px-3 py-1 border border-black/10 rounded-full text-sm font-semibold text-gray-900 inline-block">
-                        {formatPaymentMethod(selectedOrder.payment_method)}
+                      <div className="text-sm font-medium text-gray-600 mb-2">Payment Method</div>
+                      <div className="inline-block">
+                        <div className="px-4 py-2 bg-white border border-gray-300 rounded-full text-sm font-medium text-gray-900">
+                          {selectedOrder.payment_method || 'QRIS'}
+                        </div>
                       </div>
                     </div>
-
-                    <div>
-                      <div className="text-xs font-medium text-gray-600 mb-1">Total</div>
-                      <div className="text-xl font-bold text-gray-900">{formatCurrency(selectedOrder.total_price)}</div>
+                    
+                    {/* Bottom Right - Total */}
+                    <div className="text-right">
+                      <div className="text-sm font-medium text-gray-600 mb-1">Total</div>
+                      <div className="text-2xl font-bold text-gray-900">{formatCurrency(selectedOrder.total_price)}</div>
                     </div>
                   </div>
                 </div>
@@ -532,62 +510,35 @@ export default function OrdersPage() {
                   <h3 className="text-sm font-semibold text-gray-900 mb-4">Order Items</h3>
                   <div className="space-y-3">
                     {selectedOrder.details?.map((item, idx) => {
-                      // Get product image URL - match to ordered size variant
-                      const productImages = item.product?.images || [];
-                      let imageUrl: string | null = null;
+                      // Get the appropriate image for the size
+                      const image = item.product?.images?.find(img => {
+                        // Handle both boolean and numeric values for is_50ml
+                        const is50ml = img.is_50ml === true || img.is_50ml === 1;
+                        const is30ml = img.is_50ml === false || img.is_50ml === 0;
+                        
+                        if (item.size === '50ml') return is50ml;
+                        return is30ml;
+                      }) || item.product?.images?.[0];
                       
-                      // Match image to ordered size
-                      let selectedImage = null;
-                      if (item.size === '50ml') {
-                        // Find 50ml image (is_50ml === 1)
-                        selectedImage = productImages.find((img: any) => img.is_50ml === 1);
-                      } else if (item.size === '30ml') {
-                        // Find 30ml image (is_50ml === 0)
-                        selectedImage = productImages.find((img: any) => img.is_50ml === 0);
-                      }
+                      const imageUrl = image?.image_url ? `/products/${image.image_url.split('/').pop()}` : null;
                       
-                      // Fallback chain: selected size -> 50ml -> 30ml -> first image
-                      const primaryImage = selectedImage || 
-                        productImages.find((img: any) => img.is_50ml === 1) || 
-                        productImages.find((img: any) => img.is_50ml === 0) || 
-                        productImages[0];
-                      
-                      if (primaryImage?.image_url) {
-                        const url = primaryImage.image_url;
-                        imageUrl = url.startsWith('http') 
-                          ? url 
-                          : url.startsWith('/products/')
-                          ? url
-                          : `/products/${url.split('/').pop()}`;
-                      }
-
                       return (
                         <div key={`${item.detail_id || idx}-${item.product_id}`} className="flex gap-4 items-center">
-                          {/* Product Image */}
-                          <div className="w-16 h-16 bg-gray-200 rounded-lg flex-shrink-0 overflow-hidden">
+                          <div className="w-16 h-16 bg-gray-300 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden">
                             {imageUrl ? (
-                              <img
-                                src={imageUrl}
-                                alt={item.product?.name || 'Product'}
+                              <img 
+                                src={imageUrl} 
+                                alt={item.product?.name || 'Product'} 
                                 className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" fill="%23999" viewBox="0 0 24 24"%3E%3Cpath d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/%3E%3C/svg%3E';
-                                }}
                               />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center bg-gray-300">
-                                <span className="text-gray-500 text-xs">No Image</span>
-                              </div>
+                              <span className="text-gray-500 text-xs">No Image</span>
                             )}
                           </div>
-                          
-                          {/* Product Details */}
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-gray-900 text-sm">{item.product?.name || 'Product'}</div>
                             <div className="text-xs text-gray-600">{item.size} • Qty: {item.quantity}</div>
                           </div>
-                          
-                          {/* Price */}
                           <div className="text-right flex-shrink-0">
                             <div className="font-semibold text-gray-900 text-sm">
                               {formatCurrency(item.price * item.quantity)}
@@ -600,8 +551,8 @@ export default function OrdersPage() {
                 </div>
               </div>
 
-              {/* Modal Footer - Fixed */}
-              <div className="border-t border-gray-200 px-6 py-4 flex gap-3 bg-white">
+              {/* Modal Footer */}
+              <div className="border-t border-gray-200 px-6 py-4 flex gap-3 sticky bottom-0 bg-white">
                 <button
                   onClick={closeStatusModal}
                   disabled={updating}

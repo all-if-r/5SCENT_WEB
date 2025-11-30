@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAdmin } from '@/contexts/AdminContext';
 import AdminLayout from '@/components/AdminLayout';
 import api from '@/lib/api';
 import Image from 'next/image';
@@ -55,10 +56,18 @@ const COLORS = ['#3B82F6', '#A855F7', '#EC4899', '#F97316', '#22C55E', '#06B6D4'
 
 export default function AdminDashboardPage() {
   const router = useRouter();
+  const { admin, loading: adminLoading } = useAdmin();
   const [timeFrame, setTimeFrame] = useState<'week' | 'month' | 'year'>('month');
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!adminLoading && !admin) {
+      router.push('/admin/login');
+    }
+  }, [admin, adminLoading, router]);
 
   const fetchDashboardData = async (options?: { isRefresh?: boolean }) => {
     const isRefresh = options?.isRefresh;
@@ -104,8 +113,20 @@ export default function AdminDashboardPage() {
   };
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [timeFrame]);
+    // Only fetch data if admin is authenticated and loading is done
+    if (!adminLoading && admin) {
+      fetchDashboardData();
+    }
+  }, [timeFrame, admin, adminLoading]);
+
+  // Show loading while admin context is loading or dashboard data is loading
+  if (adminLoading || !admin) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-pulse">Authenticating...</div>
+      </div>
+    );
+  }
 
   if (!dashboardData || loading) {
     return (

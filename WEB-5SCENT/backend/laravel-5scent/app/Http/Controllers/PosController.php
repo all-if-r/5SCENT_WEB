@@ -6,7 +6,6 @@ use App\Models\PosItem;
 use App\Models\PosTransaction;
 use App\Models\Product;
 use App\Models\ProductImage;
-use App\Models\Order;
 use Illuminate\Http\Request;
 use PDF;
 use Carbon\Carbon;
@@ -39,9 +38,9 @@ class PosController extends Controller
                 ->where('is_50ml', true)
                 ->first();
 
-            // Store just the filename, Next.js will resolve from /products folder
-            $product->image_thumb = $image30ml ? $image30ml->image_url : null;
-            $product->image_thumb_50ml = $image50ml ? $image50ml->image_url : null;
+            // Extract just the filename from the full path
+            $product->image_thumb = $image30ml ? basename($image30ml->image_url) : null;
+            $product->image_thumb_50ml = $image50ml ? basename($image50ml->image_url) : null;
             return $product;
         });
 
@@ -138,80 +137,41 @@ class PosController extends Controller
             $product->decrement($stockField, $itemData['quantity']);
         }
 
-        // Create corresponding Order record with POS pattern
-        $posOrder = $this->createPosOrder($transaction, $items);
-        
-        $transaction->update(['order_id' => $posOrder->order_id]);
-
         return response()->json([
-            'transaction' => $transaction->load('items.product'),
-            'order_id' => $posOrder->order_id,
+            'transaction_id' => $transaction->transaction_id,
+            'customer_name' => $transaction->customer_name,
+            'total_price' => $transaction->total_price,
+            'payment_method' => $transaction->payment_method,
         ], 201);
     }
 
     /**
-     * Create an Order record for POS transaction with #POS-DD-MM-YYYY-XXX pattern
-     */
-    private function createPosOrder($transaction, $items)
-    {
-        $date = $transaction->date ?? now();
-        $dateStr = $date->format('d-m-Y');
-        
-        // Get today's POS order count for padding
-        $todayCount = Order::whereDate('created_at', $date)
-            ->where('shipping_address', 'LIKE', 'POS%')
-            ->count() + 1;
-        
-        $orderCode = 'POS-' . $dateStr . '-' . str_pad($todayCount, 3, '0', STR_PAD_LEFT);
-
-        // Calculate subtotal from items
-        $subtotal = collect($items)->sum('subtotal');
-
-        $order = Order::create([
-            'user_id' => $transaction->admin_id, // Store admin_id in user_id for POS orders
-            'subtotal' => $subtotal,
-            'total_price' => $transaction->total_price,
-            'status' => 'Delivered', // POS sales are immediately completed
-            'shipping_address' => $orderCode, // Store order code in shipping_address
-            'payment_method' => $transaction->payment_method,
-            'tracking_number' => 'POS-' . $transaction->transaction_id,
-            'created_at' => $transaction->date,
-        ]);
-
-        // Create OrderDetail entries for each item
-        foreach ($items as $item) {
-            $order->details()->create([
-                'product_id' => $item['product_id'],
-                'quantity' => $item['quantity'],
-                'price' => $item['price'],
-                'size' => $item['size'],
-                'subtotal' => $item['subtotal'],
-            ]);
-        }
-
-        return $order;
-    }
-
-    /**
-     * Generate PDF receipt for a transaction
+     * Generate PDF receipt for a transaction - Simplified version
      */
     public function generateReceipt($transactionId)
     {
-        $transaction = PosTransaction::with('items.product', 'admin')
-            ->findOrFail($transactionId);
+        try {
+            $transaction = PosTransaction::with('items.product', 'admin')
+                ->findOrFail($transactionId);
 
-        $data = [
-            'transaction' => $transaction,
-            'date' => $transaction->date->format('Y-m-d H:i:s'),
-        ];
+            // Prepare data for PDF
+            $data = [
+                'transaction' => $transaction,
+                'items' => $transaction->items,
+                'admin' => $transaction->admin,
+            ];
 
-        $pdf = PDF::loadView('pos.receipt', $data);
-        
-        // Sanitize filename: remove spaces, special characters
-        $sanitizedName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $transaction->customer_name);
-        $filename = 'pos-receipt-' . $transaction->transaction_id . '-' . $sanitizedName . '.pdf';
-        
-        return $pdf->download($filename);
+            // Load and generate PDF
+            $pdf = PDF::loadView('pos.receipt', $data);
+            
+            // Create safe filename with customer name at the end
+            $sanitizedName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $transaction->customer_name);
+            $filename = 'pos-receipt-' . $transaction->transaction_id . '-' . $sanitizedName . '.pdf';
+            
+            return $pdf->download($filename);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to generate receipt: ' . $e->getMessage()], 500);
+        }
     }
 
     /**

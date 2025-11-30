@@ -11,6 +11,7 @@ class PosItem extends Model
 
     protected $table = 'pos_item';
     protected $primaryKey = 'pos_item_id';
+    public $timestamps = false;
 
     protected $fillable = [
         'transaction_id',

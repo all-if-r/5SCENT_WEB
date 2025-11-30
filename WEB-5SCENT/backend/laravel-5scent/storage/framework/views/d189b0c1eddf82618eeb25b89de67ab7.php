@@ -178,22 +178,22 @@
         <!-- Header -->
         <div class="header">
             <div class="brand">5SCENT</div>
-            <div class="timestamp">{{ $transaction->date->format('Y-m-d H:i:s') }}</div>
+            <div class="timestamp"><?php echo e($transaction->date->format('Y-m-d H:i:s')); ?></div>
         </div>
 
         <!-- Admin and Customer Details -->
         <div class="details">
             <div class="detail-row">
                 <span class="detail-label">Admin:</span>
-                <span class="detail-value">{{ $admin->name ?? 'Admin' }}</span>
+                <span class="detail-value"><?php echo e($admin->name ?? 'Admin'); ?></span>
             </div>
             <div class="detail-row">
                 <span class="detail-label">Customer Name:</span>
-                <span class="detail-value">{{ $transaction->customer_name }}</span>
+                <span class="detail-value"><?php echo e($transaction->customer_name); ?></span>
             </div>
             <div class="detail-row">
                 <span class="detail-label">Phone Number:</span>
-                <span class="detail-value">{{ $transaction->phone }}</span>
+                <span class="detail-value"><?php echo e($transaction->phone); ?></span>
             </div>
         </div>
 
@@ -209,15 +209,15 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach($items as $item)
+                <?php $__currentLoopData = $items; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                     <tr>
-                        <td>{{ $item->product->name }}</td>
-                        <td>{{ $item->size }}</td>
-                        <td class="text-right">{{ $item->quantity }}</td>
-                        <td class="text-right currency">Rp{{ number_format($item->price, 0, ',', '.') }}</td>
-                        <td class="text-right currency">Rp{{ number_format($item->subtotal, 0, ',', '.') }}</td>
+                        <td><?php echo e($item->product->name); ?></td>
+                        <td><?php echo e($item->size); ?></td>
+                        <td class="text-right"><?php echo e($item->quantity); ?></td>
+                        <td class="text-right currency">Rp<?php echo e(number_format($item->price, 0, ',', '.')); ?></td>
+                        <td class="text-right currency">Rp<?php echo e(number_format($item->subtotal, 0, ',', '.')); ?></td>
                     </tr>
-                @endforeach
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
             </tbody>
         </table>
 
@@ -225,30 +225,30 @@
         <div class="totals">
             <div class="total-row">
                 <span class="total-label">Subtotal:</span>
-                <span class="total-value currency">Rp{{ number_format($transaction->total_price, 0, ',', '.') }}</span>
+                <span class="total-value currency">Rp<?php echo e(number_format($transaction->total_price, 0, ',', '.')); ?></span>
             </div>
 
-            @if($transaction->payment_method === 'Cash')
+            <?php if($transaction->payment_method === 'Cash'): ?>
                 <div class="total-row">
                     <span class="total-label">Cash Received:</span>
-                    <span class="total-value currency">Rp{{ number_format($transaction->cash_received ?? 0, 0, ',', '.') }}</span>
+                    <span class="total-value currency">Rp<?php echo e(number_format($transaction->cash_received ?? 0, 0, ',', '.')); ?></span>
                 </div>
                 <div class="total-row">
                     <span class="total-label">Change:</span>
-                    <span class="total-value currency">Rp{{ number_format($transaction->cash_change ?? 0, 0, ',', '.') }}</span>
+                    <span class="total-value currency">Rp<?php echo e(number_format($transaction->cash_change ?? 0, 0, ',', '.')); ?></span>
                 </div>
-            @endif
+            <?php endif; ?>
 
             <div class="total-row final">
                 <span class="total-label">Total:</span>
-                <span class="total-value currency">Rp{{ number_format($transaction->total_price, 0, ',', '.') }}</span>
+                <span class="total-value currency">Rp<?php echo e(number_format($transaction->total_price, 0, ',', '.')); ?></span>
             </div>
         </div>
 
         <!-- Payment Method -->
         <div class="payment-method">
             <div class="payment-row">
-                <strong>Payment Method: {{ str_replace('_', ' ', $transaction->payment_method) }}</strong>
+                <strong>Payment Method: <?php echo e(str_replace('_', ' ', $transaction->payment_method)); ?></strong>
             </div>
         </div>
 
@@ -256,9 +256,11 @@
         <div class="footer">
             <div class="footer-text">Thank you for shopping with 5SCENT</div>
             <div style="font-size: 11px; color: #999; margin-top: 10px;">
-                Receipt ID: POS-{{ $transaction->transaction_id }}
+                Receipt ID: POS-<?php echo e($transaction->transaction_id); ?>
+
             </div>
         </div>
     </div>
 </body>
 </html>
+<?php /**PATH D:\Impal3\5SCENT_WEB\WEB-5SCENT\backend\laravel-5scent\resources\views/pos/receipt.blade.php ENDPATH**/ ?>

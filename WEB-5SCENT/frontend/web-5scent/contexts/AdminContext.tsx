@@ -32,7 +32,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         
         if (adminToken && storedAdmin) {
           // Set admin immediately from localStorage
-          setAdmin(JSON.parse(storedAdmin));
+          const parsedAdmin = JSON.parse(storedAdmin);
+          setAdmin(parsedAdmin);
           
           // Verify token is still valid by calling admin/me endpoint
           try {
@@ -41,13 +42,19 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
               setAdmin(response.data);
               localStorage.setItem('admin', JSON.stringify(response.data));
             }
-          } catch (error) {
-            // Token verification failed, but we have stored data
-            // Keep the stored data for now
+          } catch (error: any) {
+            console.error('Token verification failed:', error.response?.status);
+            // If token is invalid (401), clear auth
+            if (error.response?.status === 401) {
+              localStorage.removeItem('admin_token');
+              localStorage.removeItem('admin');
+              setAdmin(null);
+            }
+            // Otherwise keep the stored admin data
           }
         }
       } catch (error) {
-        // Token verification failed, clear auth
+        // JSON parse error or other issues, clear auth
         localStorage.removeItem('admin_token');
         localStorage.removeItem('admin');
         setAdmin(null);
