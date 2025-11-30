@@ -6,6 +6,7 @@ import api from '@/lib/api';
 import { ChevronDownIcon, EyeIcon } from '@heroicons/react/24/outline';
 import { MdContentCopy, MdCheckCircle } from 'react-icons/md';
 import { FiPackage, FiTruck, FiCheck } from 'react-icons/fi';
+import { useToast } from '@/contexts/ToastContext';
 
 interface OrderItem {
   detail_id: number;
@@ -16,6 +17,11 @@ interface OrderItem {
   product?: {
     name: string;
     product_id: number;
+    images?: Array<{
+      image_id?: number;
+      image_url: string;
+      is_50ml?: boolean;
+    }>;
   };
 }
 
@@ -49,6 +55,7 @@ interface PaginatedResponse {
 }
 
 export default function OrdersPage() {
+  const { showToast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState<string>('');
@@ -117,7 +124,7 @@ export default function OrdersPage() {
 
     // Validate: if changing to Shipping, tracking number is required
     if (newStatus === 'Shipping' && !trackingNumber.trim()) {
-      alert('Tracking number is required for Shipping status');
+      showToast('Tracking number is required for Shipping status', 'error');
       return;
     }
 
@@ -135,10 +142,11 @@ export default function OrdersPage() {
           : order
       ));
 
+      showToast('Order status updated successfully', 'success');
       closeStatusModal();
     } catch (error) {
       console.error('Error updating order status:', error);
-      alert('Failed to update order status');
+      showToast('Failed to update order status', 'error');
     } finally {
       setUpdating(false);
     }
@@ -156,6 +164,14 @@ export default function OrdersPage() {
       month: 'short',
       day: 'numeric',
     });
+  };
+
+  const formatOrderDate = (date: string) => {
+    const d = new Date(date);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
   };
 
   const formatCurrency = (value: number) => {
@@ -207,7 +223,7 @@ export default function OrdersPage() {
                     <div className="flex items-start justify-between mb-6 pb-6 border-b border-gray-200">
                       <div className="flex-1">
                         <div className="text-xs text-gray-500 font-medium mb-1">Order ID</div>
-                        <div className="font-bold text-gray-900 text-lg">#ORD-2024-{String(order.order_id).padStart(3, '0')}</div>
+                        <div className="font-bold text-gray-900 text-lg">#ORD-{formatOrderDate(order.created_at)}-{String(order.order_id).padStart(3, '0')}</div>
                       </div>
 
                       <div className="flex-1">
@@ -326,7 +342,7 @@ export default function OrdersPage() {
               <div className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-start sticky top-0">
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900">
-                    Order #ORD-2024-{String(selectedOrder.order_id).padStart(3, '0')}
+                    Order #ORD-{formatOrderDate(selectedOrder.created_at)}-{String(selectedOrder.order_id).padStart(3, '0')}
                   </h2>
                   <p className="text-sm text-gray-600 mt-1">View and manage order details</p>
                 </div>
@@ -340,20 +356,35 @@ export default function OrdersPage() {
 
               {/* Modal Body */}
               <div className="p-6 space-y-6">
-                {/* Order Info Grid */}
-                <div className="bg-gray-50 rounded-xl p-6">
-                  <div className="grid grid-cols-3 gap-6">
+                {/* Order Info Grid - 2x2 Layout with Gray Background */}
+                <div className="bg-gray-100 rounded-xl p-8">
+                  <div className="grid grid-cols-2 gap-8">
+                    {/* Top Left - Order Date */}
                     <div>
-                      <div className="text-xs font-medium text-gray-600 mb-2">Order Date</div>
-                      <div className="text-base font-semibold text-gray-900">{formatDate(selectedOrder.created_at)}</div>
+                      <div className="text-sm font-medium text-gray-600 mb-1">Order Date</div>
+                      <div className="text-lg font-semibold text-gray-900">{formatDate(selectedOrder.created_at)}</div>
                     </div>
-                    <div>
-                      <div className="text-xs font-medium text-gray-600 mb-2">Payment Method</div>
-                      <div className="text-base font-semibold text-gray-900">{selectedOrder.payment_method || 'QRIS'}</div>
+                    
+                    {/* Top Right - Subtotal */}
+                    <div className="text-right">
+                      <div className="text-sm font-medium text-gray-600 mb-1">Subtotal</div>
+                      <div className="text-lg font-semibold text-gray-900">{formatCurrency(selectedOrder.total_price)}</div>
                     </div>
+                    
+                    {/* Bottom Left - Payment Method */}
                     <div>
-                      <div className="text-xs font-medium text-gray-600 mb-2">Total Amount</div>
-                      <div className="text-xl font-bold text-gray-900">{formatCurrency(selectedOrder.total_price)}</div>
+                      <div className="text-sm font-medium text-gray-600 mb-2">Payment Method</div>
+                      <div className="inline-block">
+                        <div className="px-4 py-2 bg-white border border-gray-300 rounded-full text-sm font-medium text-gray-900">
+                          {selectedOrder.payment_method || 'QRIS'}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Bottom Right - Total */}
+                    <div className="text-right">
+                      <div className="text-sm font-medium text-gray-600 mb-1">Total</div>
+                      <div className="text-2xl font-bold text-gray-900">{formatCurrency(selectedOrder.total_price)}</div>
                     </div>
                   </div>
                 </div>
@@ -478,22 +509,44 @@ export default function OrdersPage() {
                 <div className="bg-gray-50 rounded-xl p-6">
                   <h3 className="text-sm font-semibold text-gray-900 mb-4">Order Items</h3>
                   <div className="space-y-3">
-                    {selectedOrder.details?.map((item, idx) => (
-                      <div key={`${item.detail_id || idx}-${item.product_id}`} className="flex gap-4 items-center">
-                        <div className="w-16 h-16 bg-gray-300 rounded-lg flex-shrink-0 flex items-center justify-center">
-                          <span className="text-gray-500 text-xs">Image</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-gray-900 text-sm">{item.product?.name || 'Product'}</div>
-                          <div className="text-xs text-gray-600">{item.size} • Qty: {item.quantity}</div>
-                        </div>
-                        <div className="text-right flex-shrink-0">
-                          <div className="font-semibold text-gray-900 text-sm">
-                            {formatCurrency(item.price * item.quantity)}
+                    {selectedOrder.details?.map((item, idx) => {
+                      // Get the appropriate image for the size
+                      const image = item.product?.images?.find(img => {
+                        // Handle both boolean and numeric values for is_50ml
+                        const is50ml = img.is_50ml === true || img.is_50ml === 1;
+                        const is30ml = img.is_50ml === false || img.is_50ml === 0;
+                        
+                        if (item.size === '50ml') return is50ml;
+                        return is30ml;
+                      }) || item.product?.images?.[0];
+                      
+                      const imageUrl = image?.image_url ? `/products/${image.image_url.split('/').pop()}` : null;
+                      
+                      return (
+                        <div key={`${item.detail_id || idx}-${item.product_id}`} className="flex gap-4 items-center">
+                          <div className="w-16 h-16 bg-gray-300 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden">
+                            {imageUrl ? (
+                              <img 
+                                src={imageUrl} 
+                                alt={item.product?.name || 'Product'} 
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-gray-500 text-xs">No Image</span>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-gray-900 text-sm">{item.product?.name || 'Product'}</div>
+                            <div className="text-xs text-gray-600">{item.size} • Qty: {item.quantity}</div>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <div className="font-semibold text-gray-900 text-sm">
+                              {formatCurrency(item.price * item.quantity)}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>

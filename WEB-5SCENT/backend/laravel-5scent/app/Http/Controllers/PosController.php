@@ -164,9 +164,9 @@ class PosController extends Controller
             // Load and generate PDF
             $pdf = PDF::loadView('pos.receipt', $data);
             
-            // Create safe filename
+            // Create safe filename with customer name at the end
             $sanitizedName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $transaction->customer_name);
-            $filename = 'Receipt_' . $transaction->transaction_id . '_' . $sanitizedName . '.pdf';
+            $filename = 'pos-receipt-' . $transaction->transaction_id . '-' . $sanitizedName . '.pdf';
             
             return $pdf->download($filename);
         } catch (\Exception $e) {

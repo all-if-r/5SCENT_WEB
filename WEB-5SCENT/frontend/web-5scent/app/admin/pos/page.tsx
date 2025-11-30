@@ -186,10 +186,20 @@ export default function POSToolPage() {
         { responseType: 'blob' }
       );
       
+      // Extract filename from Content-Disposition header, or use default
+      let filename = `pos-receipt-${transactionId}.pdf`;
+      const contentDisposition = response.headers['content-disposition'];
+      if (contentDisposition) {
+        const filenamePart = contentDisposition.split('filename=')[1];
+        if (filenamePart) {
+          filename = filenamePart.replace(/"/g, '').split(';')[0];
+        }
+      }
+      
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `pos-receipt-${transactionId}.pdf`);
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       link.parentChild?.removeChild(link);
