@@ -235,4 +235,52 @@ class ProductController extends Controller
 
         return response()->json(['message' => 'Image deleted successfully']);
     }
+
+    public function uploadImage($productId, Request $request)
+    {
+        try {
+            \Log::info('uploadImage called', [
+                'product_id' => $productId,
+                'has_image' => $request->hasFile('image'),
+                'is_50ml' => $request->input('is_50ml'),
+            ]);
+
+            $product = Product::findOrFail($productId);
+
+            $request->validate([
+                'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:10240',
+                'is_50ml' => 'sometimes|in:0,1',
+            ]);
+
+            $image = $request->file('image');
+            $filename = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
+            $image->move(public_path('products'), $filename);
+            $imageUrl = '/products/' . $filename;
+
+            $is50ml = $request->input('is_50ml', 0);
+
+            \Log::info('Creating ProductImage', [
+                'product_id' => $productId,
+                'image_url' => $imageUrl,
+                'is_50ml' => $is50ml,
+            ]);
+
+            $productImage = ProductImage::create([
+                'product_id' => $productId,
+                'image_url' => $imageUrl,
+                'is_50ml' => $is50ml,
+            ]);
+
+            return response()->json([
+                'message' => 'Image uploaded successfully',
+                'image' => $productImage,
+            ], 201);
+        } catch (\Exception $e) {
+            \Log::error('uploadImage error: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Failed to upload image',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
 }

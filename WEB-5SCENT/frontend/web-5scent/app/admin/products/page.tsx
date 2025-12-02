@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/AdminLayout';
 import api from '@/lib/api';
+import { useToast } from '@/contexts/ToastContext';
 import {
   MagnifyingGlassIcon,
   PencilIcon,
@@ -56,6 +57,7 @@ interface FormData {
 }
 
 export default function ProductsPage() {
+  const { showToast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -239,27 +241,17 @@ export default function ProductsPage() {
     }
   };
 
-  const handleSubmitProduct = async (e: React.FormEvent) => {
+  const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    
     try {
       setSubmitting(true);
       setModalError(null);
 
-      const submitData = new FormData();
-      submitData.append('name', formData.name);
-      submitData.append('description', formData.description);
-      submitData.append('top_notes', formData.top_notes);
-      submitData.append('middle_notes', formData.middle_notes);
-      submitData.append('base_notes', formData.base_notes);
-      submitData.append('category', formData.category);
-      submitData.append('price_30ml', formData.price_30ml);
-      submitData.append('price_50ml', formData.price_50ml);
-      submitData.append('stock_30ml', formData.stock_30ml);
-      submitData.append('stock_50ml', formData.stock_50ml || formData.stock_30ml);
+      if (!editingProduct) return;
 
-      // Log form data for debugging
-      console.log('Form Data:', {
+      // First, update the product data (name, description, prices, stock, etc.)
+      const updatePayload = {
         name: formData.name,
         description: formData.description,
         top_notes: formData.top_notes,
@@ -269,100 +261,179 @@ export default function ProductsPage() {
         price_30ml: formData.price_30ml,
         price_50ml: formData.price_50ml,
         stock_30ml: formData.stock_30ml,
-        stock_50ml: formData.stock_50ml,
-      });
+        stock_50ml: formData.stock_50ml || formData.stock_30ml,
+      };
 
-      if (editingProduct) {
-        console.log('Editing product:', editingProduct.product_id);
-        console.log('Uploaded images array:', uploadedImages);
-        console.log('Uploaded images count:', uploadedImages.filter(Boolean).length);
-        console.log('Images to delete:', imagesToDelete);
-        
-        // Add images from uploadedImages array
-        uploadedImages.forEach((image) => {
-          if (image) {
-            console.log(`Adding image:`, image.name, image.size);
-            submitData.append('images[]', image);
-          }
-        });
-        
-        // Delete marked images before updating product
+      console.log('Updating product with data:', updatePayload);
+
+      const updateResponse = await api.put(
+        `/admin/products/${editingProduct.product_id}`,
+        updatePayload
+      );
+
+      console.log('Product updated:', updateResponse.data);
+
+      // Then, handle image deletions
+      if (imagesToDelete.length > 0) {
+        console.log('Deleting images:', imagesToDelete);
         for (const imageId of imagesToDelete) {
           try {
-            console.log(`Deleting image ${imageId}`);
             await api.delete(`/admin/products/${editingProduct.product_id}/images/${imageId}`);
+            console.log(`Deleted image ${imageId}`);
           } catch (err) {
             console.error(`Failed to delete image ${imageId}:`, err);
           }
         }
-        
-        // Log FormData contents
-        console.log('FormData contents:');
-        for (let [key, value] of submitData.entries()) {
-          console.log(`${key}:`, value instanceof File ? `File: ${value.name}` : value);
-        }
-        
-        // Use axios PUT method instead of POST with _method
-        console.log('Sending PUT request to:', `/admin/products/${editingProduct.product_id}`);
-        const response = await api.put(`/admin/products/${editingProduct.product_id}`, submitData, {
-          headers: {
-            'Content-Type': undefined,
-          },
-        });
-        console.log('Response:', response.data);
-      } else {
-        if (uploadedImages.filter((img) => img).length === 0) {
-          setModalError('Please upload at least one product image');
-          return;
-        }
-        console.log('Creating new product with images:', uploadedImages.filter(Boolean).length);
-        uploadedImages.forEach((image) => {
-          if (image) {
-            console.log(`Adding image:`, image.name, image.size);
-            submitData.append('images[]', image);
-          }
-        });
-        const response = await api.post('/admin/products', submitData, {
-          headers: {
-            'Content-Type': undefined,
-          },
-        });
-        console.log('Response:', response.data);
       }
 
+      // Finally, handle new image uploads
+      const newImagesToUpload = uploadedImages.filter(Boolean);
+      if (newImagesToUpload.length > 0) {
+        console.log('Uploading new images:', newImagesToUpload.length);
+        
+        for (const [index, image] of newImagesToUpload.entries()) {
+          const imageFormData = new FormData();
+          imageFormData.append('image', image);
+          imageFormData.append('is_50ml', index === 0 ? '1' : '0');
+
+          try {
+            await api.post(
+              `/admin/products/${editingProduct.product_id}/upload-image`,
+              imageFormData
+            );
+            console.log(`Uploaded image ${index + 1}`);
+          } catch (err) {
+            console.error(`Failed to upload image ${index}:`, err);
+          }
+        }
+      }
+
+      // Refresh the product list
       await fetchProducts();
+      showToast(`Product "${formData.name}" updated successfully!`, 'success');
       closeModals();
     } catch (err: any) {
-      console.error('Error saving product:', err);
-      console.error('Response status:', err.response?.status);
-      console.error('Response data:', err.response?.data);
-      console.error('Response headers:', err.response?.headers);
+      console.error('Error updating product:', err);
       
-      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to save product';
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to update product';
       const errors = err.response?.data?.errors;
       
+      let displayMessage = errorMessage;
       if (errors) {
         const errorList = Object.entries(errors)
           .map(([field, messages]: any) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
           .join('\n');
-        setModalError(`Validation errors:\n${errorList}`);
+        displayMessage = `Validation errors:\n${errorList}`;
       } else if (err.response?.data) {
-        setModalError(`Error: ${JSON.stringify(err.response.data)}`);
-      } else {
-        setModalError(errorMessage);
+        displayMessage = `Error: ${JSON.stringify(err.response.data)}`;
       }
+      
+      setModalError(displayMessage);
+      showToast(displayMessage, 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
+  const handleCreateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      setSubmitting(true);
+      setModalError(null);
+
+      // Check if images are provided
+      const newImagesToUpload = uploadedImages.filter(Boolean);
+      if (newImagesToUpload.length === 0) {
+        setModalError('Please upload at least one product image');
+        showToast('Please upload at least one product image', 'error');
+        setSubmitting(false);
+        return;
+      }
+
+      // Create product with base data
+      const createPayload = {
+        name: formData.name,
+        description: formData.description,
+        top_notes: formData.top_notes,
+        middle_notes: formData.middle_notes,
+        base_notes: formData.base_notes,
+        category: formData.category,
+        price_30ml: formData.price_30ml,
+        price_50ml: formData.price_50ml,
+        stock_30ml: formData.stock_30ml,
+        stock_50ml: formData.stock_50ml || formData.stock_30ml,
+      };
+
+      console.log('Creating product with data:', createPayload);
+
+      const createResponse = await api.post('/admin/products', createPayload);
+      const newProductId = createResponse.data.product_id || createResponse.data.id;
+
+      console.log('Product created with ID:', newProductId);
+
+      // Upload images for the new product
+      for (const [index, image] of newImagesToUpload.entries()) {
+        const imageFormData = new FormData();
+        imageFormData.append('image', image);
+        imageFormData.append('is_50ml', index === 0 ? '1' : '0');
+
+        try {
+          await api.post(
+            `/admin/products/${newProductId}/upload-image`,
+            imageFormData
+          );
+          console.log(`Uploaded image ${index + 1}`);
+        } catch (err) {
+          console.error(`Failed to upload image ${index}:`, err);
+        }
+      }
+
+      // Refresh the product list
+      await fetchProducts();
+      showToast(`Product "${formData.name}" created successfully!`, 'success');
+      closeModals();
+    } catch (err: any) {
+      console.error('Error creating product:', err);
+      
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to create product';
+      const errors = err.response?.data?.errors;
+      
+      let displayMessage = errorMessage;
+      if (errors) {
+        const errorList = Object.entries(errors)
+          .map(([field, messages]: any) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
+          .join('\n');
+        displayMessage = `Validation errors:\n${errorList}`;
+      } else if (err.response?.data) {
+        displayMessage = `Error: ${JSON.stringify(err.response.data)}`;
+      }
+      
+      setModalError(displayMessage);
+      showToast(displayMessage, 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSubmitProduct = async (e: React.FormEvent) => {
+    if (editingProduct) {
+      await handleUpdateProduct(e);
+    } else {
+      await handleCreateProduct(e);
+    }
+  };
+
   const handleDeleteProduct = async (productId: number) => {
     try {
+      const productName = products.find(p => p.product_id === productId)?.name || 'Product';
       await api.delete(`/products/${productId}`);
       setProducts(products.filter((p) => p.product_id !== productId));
       setDeleteConfirm(null);
+      showToast(`"${productName}" deleted successfully!`, 'success');
     } catch (error) {
       console.error('Error deleting product:', error);
+      showToast('Failed to delete product', 'error');
     }
   };
 
@@ -381,16 +452,15 @@ export default function ProductsPage() {
 
   return (
     <AdminLayout>
-      <div className="min-h-screen bg-gray-50">
-        {/* Control Bar */}
-        <div className="bg-white border-b border-gray-200 px-8 py-4">
-          <div className="flex items-center gap-4">
-            {/* Search Bar */}
+      <div className="space-y-6">
+        {/* Search and Filter Section */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="flex gap-4 items-center flex-wrap">
             <div className="flex-1 relative">
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search products..."
+                placeholder="Search products by name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent transition-all"
