@@ -11,13 +11,12 @@ class PosTransaction extends Model
 
     protected $table = 'pos_transaction';
     protected $primaryKey = 'transaction_id';
-    public $timestamps = false;
+    public $timestamps = true;
 
     protected $fillable = [
         'admin_id',
         'customer_name',
         'phone',
-        'date',
         'total_price',
         'payment_method',
         'cash_received',
@@ -31,7 +30,6 @@ class PosTransaction extends Model
             'total_price' => 'float',
             'cash_received' => 'float',
             'cash_change' => 'float',
-            'date' => 'datetime',
         ];
     }
 

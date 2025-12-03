@@ -245,8 +245,8 @@ class ProductController extends Controller
             return response()->json(['error' => 'Image does not belong to this product'], 403);
         }
 
-        // Delete the file from public directory
-        $filePath = public_path($image->image_url);
+        // Delete the file from frontend's public directory using consistent path
+        $filePath = base_path('../../frontend/web-5scent/public' . $image->image_url);
         if (file_exists($filePath)) {
             unlink($filePath);
         }
@@ -274,8 +274,28 @@ class ProductController extends Controller
                 'is_additional' => 'sometimes|in:0,1',
             ]);
 
+            $is50ml = $request->input('is_50ml', 0);
+            $isAdditional = $request->input('is_additional', 0);
+
             $image = $request->file('image');
-            $filename = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
+            // Use the filename provided by the client (already formatted from frontend)
+            $filename = $image->getClientOriginalName();
+            
+            // Extract the base filename without extension to match against existing images
+            $filenameWithoutExt = pathinfo($filename, PATHINFO_FILENAME);
+
+            // Delete existing image with the same filename
+            $existingImage = ProductImage::where('product_id', $productId)
+                ->where('image_url', 'LIKE', '%' . $filenameWithoutExt . '%')
+                ->first();
+
+            if ($existingImage) {
+                $oldFilePath = base_path('../../frontend/web-5scent/public' . $existingImage->image_url);
+                if (file_exists($oldFilePath)) {
+                    unlink($oldFilePath);
+                }
+                $existingImage->delete();
+            }
             
             // Save to frontend's public/products folder
             $frontendProductsPath = base_path('../../frontend/web-5scent/public/products');
@@ -285,9 +305,6 @@ class ProductController extends Controller
             $image->move($frontendProductsPath, $filename);
             
             $imageUrl = '/products/' . $filename;
-
-            $is50ml = $request->input('is_50ml', 0);
-            $isAdditional = $request->input('is_additional', 0);
 
             \Log::info('Creating ProductImage', [
                 'product_id' => $productId,
