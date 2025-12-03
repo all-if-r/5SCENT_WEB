@@ -3,7 +3,6 @@ import axios, { AxiosError } from 'axios';
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api',
   headers: {
-    'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
   withCredentials: false, // Set to false for public endpoints, will be overridden for auth endpoints
@@ -60,6 +59,13 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
       // Not using withCredentials since we're using token-based auth, not cookie-based
     }
+    
+    // Only set Content-Type for JSON if data is not FormData
+    // FormData will automatically set the correct multipart/form-data header
+    if (!(config.data instanceof FormData)) {
+      config.headers['Content-Type'] = 'application/json';
+    }
+    
     const fullUrl = `${config.baseURL}${config.url}`;
     console.log(`[API Request] ${config.method?.toUpperCase()} ${fullUrl}`);
     return config;

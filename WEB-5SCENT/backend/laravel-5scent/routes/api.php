@@ -87,6 +87,7 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
     // Products
     Route::apiResource('products', ProductController::class);
     Route::delete('/products/{productId}/images/{imageId}', [ProductController::class, 'deleteImage']);
+    Route::post('/products/{productId}/upload-image', [ProductController::class, 'uploadImage']);
 
     // POS
     Route::prefix('pos')->group(function () {
@@ -94,7 +95,7 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
         Route::post('/transactions', [PosController::class, 'createTransaction']);
         Route::get('/transactions', [PosController::class, 'indexTransactions']);
         Route::get('/transactions/{id}', [PosController::class, 'getTransaction']);
-        Route::get('/transactions/{id}/download-receipt', [PosController::class, 'downloadReceipt']);
+        Route::get('/transactions/{id}/receipt', [PosController::class, 'generateReceipt']);
     });
 });
 
