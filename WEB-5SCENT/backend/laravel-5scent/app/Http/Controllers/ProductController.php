@@ -126,16 +126,26 @@ class ProductController extends Controller
         $product = Product::create($validated);
 
         if ($request->hasFile('images')) {
+            $frontendProductsPath = base_path('../../frontend/web-5scent/public/products');
+            if (!is_dir($frontendProductsPath)) {
+                mkdir($frontendProductsPath, 0755, true);
+            }
+            
             foreach ($request->file('images') as $index => $image) {
                 if ($image) {
                     $filename = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
-                    $image->move(public_path('products'), $filename);
+                    $image->move($frontendProductsPath, $filename);
                     $imageUrl = '/products/' . $filename;
+                    
+                    // Index 0: 50ml, Index 1: 30ml, Index 2-3: Additional
+                    $is50ml = $index === 0 ? 1 : 0;
+                    $isAdditional = $index > 1 ? 1 : 0;
                     
                     ProductImage::create([
                         'product_id' => $product->product_id,
                         'image_url' => $imageUrl,
-                        'is_50ml' => $index === 0 ? 1 : 0,
+                        'is_50ml' => $is50ml,
+                        'is_additional' => $isAdditional,
                     ]);
                 }
             }
@@ -184,10 +194,15 @@ class ProductController extends Controller
         }
 
         if ($request->hasFile('images')) {
+            $frontendProductsPath = base_path('../../frontend/web-5scent/public/products');
+            if (!is_dir($frontendProductsPath)) {
+                mkdir($frontendProductsPath, 0755, true);
+            }
+            
             foreach ($request->file('images') as $index => $image) {
                 if ($image) {
                     $filename = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
-                    $image->move(public_path('products'), $filename);
+                    $image->move($frontendProductsPath, $filename);
                     $imageUrl = '/products/' . $filename;
                     
                     \Log::info('Creating ProductImage:', [
@@ -196,10 +211,15 @@ class ProductController extends Controller
                         'index' => $index,
                     ]);
                     
+                    // Index 0: 50ml, Index 1: 30ml, Index 2-3: Additional
+                    $is50ml = $index === 0 ? 1 : 0;
+                    $isAdditional = $index > 1 ? 1 : 0;
+                    
                     ProductImage::create([
                         'product_id' => $product->product_id,
                         'image_url' => $imageUrl,
-                        'is_50ml' => 0,
+                        'is_50ml' => $is50ml,
+                        'is_additional' => $isAdditional,
                     ]);
                 }
             }
@@ -243,6 +263,7 @@ class ProductController extends Controller
                 'product_id' => $productId,
                 'has_image' => $request->hasFile('image'),
                 'is_50ml' => $request->input('is_50ml'),
+                'is_additional' => $request->input('is_additional'),
             ]);
 
             $product = Product::findOrFail($productId);
@@ -250,25 +271,37 @@ class ProductController extends Controller
             $request->validate([
                 'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:10240',
                 'is_50ml' => 'sometimes|in:0,1',
+                'is_additional' => 'sometimes|in:0,1',
             ]);
 
             $image = $request->file('image');
             $filename = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
-            $image->move(public_path('products'), $filename);
+            
+            // Save to frontend's public/products folder
+            $frontendProductsPath = base_path('../../frontend/web-5scent/public/products');
+            if (!is_dir($frontendProductsPath)) {
+                mkdir($frontendProductsPath, 0755, true);
+            }
+            $image->move($frontendProductsPath, $filename);
+            
             $imageUrl = '/products/' . $filename;
 
             $is50ml = $request->input('is_50ml', 0);
+            $isAdditional = $request->input('is_additional', 0);
 
             \Log::info('Creating ProductImage', [
                 'product_id' => $productId,
                 'image_url' => $imageUrl,
                 'is_50ml' => $is50ml,
+                'is_additional' => $isAdditional,
+                'saved_path' => $frontendProductsPath . '/' . $filename,
             ]);
 
             $productImage = ProductImage::create([
                 'product_id' => $productId,
                 'image_url' => $imageUrl,
                 'is_50ml' => $is50ml,
+                'is_additional' => $isAdditional,
             ]);
 
             return response()->json([

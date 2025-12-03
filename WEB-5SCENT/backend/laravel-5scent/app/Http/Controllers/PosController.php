@@ -38,7 +38,7 @@ class PosController extends Controller
                 ->where('is_50ml', true)
                 ->first();
 
-            // Extract just the filename to ensure correct path construction
+            // Extract just the filename from the full path
             $product->image_thumb = $image30ml ? basename($image30ml->image_url) : null;
             $product->image_thumb_50ml = $image50ml ? basename($image50ml->image_url) : null;
             return $product;
@@ -146,20 +146,13 @@ class PosController extends Controller
     }
 
     /**
-     * Download PDF receipt for a transaction with proper naming and timestamp handling
+     * Generate PDF receipt for a transaction - Simplified version
      */
-    public function downloadReceipt($transactionId)
+    public function generateReceipt($transactionId)
     {
         try {
-            $transaction = PosTransaction::findOrFail($transactionId);
-
-            // Update timestamps when receipt is downloaded
-            $transaction->created_at = now();
-            $transaction->updated_at = now();
-            $transaction->save();
-
-            // Fetch items and admin relationship for the receipt
-            $transaction->load('items.product', 'admin');
+            $transaction = PosTransaction::with('items.product', 'admin')
+                ->findOrFail($transactionId);
 
             // Prepare data for PDF
             $data = [
@@ -168,29 +161,16 @@ class PosController extends Controller
                 'admin' => $transaction->admin,
             ];
 
-            // Generate PDF with the receipt view
+            // Load and generate PDF
             $pdf = PDF::loadView('pos.receipt', $data);
             
-            // Create filename: pos-receipt-{transaction_id}-{customer_name}
-            // Sanitize customer name: replace spaces with underscore and remove special characters
-            $customerSlug = preg_replace('/[^a-zA-Z0-9_-]/', '_', $transaction->customer_name);
-            $customerSlug = preg_replace('/_+/', '_', $customerSlug); // Remove multiple underscores
-            $customerSlug = trim($customerSlug, '_'); // Remove leading/trailing underscores
+            // Create safe filename with customer name at the end
+            $sanitizedName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $transaction->customer_name);
+            $filename = 'pos-receipt-' . $transaction->transaction_id . '-' . $sanitizedName . '.pdf';
             
-            // Fallback to 'Customer' if name is empty after sanitization
-            $customerSlug = !empty($customerSlug) ? $customerSlug : 'Customer';
-            
-            $filename = 'pos-receipt-' . $transaction->transaction_id . '-' . $customerSlug . '.pdf';
-            
-            // Set proper headers for download with explicit filename
-            $headers = [
-                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-                'Content-Type' => 'application/pdf'
-            ];
-            
-            return $pdf->download($filename, [], $headers);
+            return $pdf->download($filename);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Failed to download receipt: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Failed to generate receipt: ' . $e->getMessage()], 500);
         }
     }
 
@@ -199,7 +179,7 @@ class PosController extends Controller
      */
     public function getTransaction($id)
     {
-        $transaction = PosTransaction::with('items.product.images', 'admin')
+        $transaction = PosTransaction::with('items.product', 'admin')
             ->findOrFail($id);
 
         return response()->json($transaction);
@@ -210,7 +190,7 @@ class PosController extends Controller
      */
     public function indexTransactions()
     {
-        $transactions = PosTransaction::with('items.product.images', 'admin')
+        $transactions = PosTransaction::with('items.product', 'admin')
             ->orderBy('date', 'desc')
             ->paginate(20);
 

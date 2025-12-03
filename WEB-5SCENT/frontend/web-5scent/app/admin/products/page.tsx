@@ -17,6 +17,7 @@ interface ProductImage {
   product_id: number;
   image_url: string;
   is_50ml: number;
+  is_additional: number;
 }
 
 interface Product {
@@ -175,14 +176,22 @@ export default function ProductsPage() {
       setExistingImages(productData.images || []);
       const previews: (string | null)[] = [null, null, null, null];
       productData.images?.forEach((img: ProductImage) => {
-        if (img.is_50ml === 1) {
-          previews[0] = img.image_url;
-        } else if (!previews[1]) {
-          previews[1] = img.image_url;
-        } else if (!previews[2]) {
-          previews[2] = img.image_url;
-        } else if (!previews[3]) {
-          previews[3] = img.image_url;
+        const is50ml = img.is_50ml === true || img.is_50ml === 1;
+        const isAdditional = img.is_additional === true || img.is_additional === 1;
+        
+        if (is50ml && !isAdditional) {
+          previews[0] = img.image_url; // 50ml variant
+        } else if (!is50ml && !isAdditional) {
+          if (!previews[1]) {
+            previews[1] = img.image_url; // 30ml variant
+          }
+        } else if (isAdditional) {
+          // Additional images
+          if (!previews[2]) {
+            previews[2] = img.image_url;
+          } else if (!previews[3]) {
+            previews[3] = img.image_url;
+          }
         }
       });
       setImagePreviews(previews);
@@ -291,19 +300,33 @@ export default function ProductsPage() {
       if (newImagesToUpload.length > 0) {
         console.log('Uploading new images:', newImagesToUpload.length);
         
-        for (const [index, image] of newImagesToUpload.entries()) {
-          const imageFormData = new FormData();
-          imageFormData.append('image', image);
-          imageFormData.append('is_50ml', index === 0 ? '1' : '0');
+        // Find the actual positions of the uploaded images
+        for (let originalIndex = 0; originalIndex < uploadedImages.length; originalIndex++) {
+          const image = uploadedImages[originalIndex];
+          if (image) {
+            const imageFormData = new FormData();
+            imageFormData.append('image', image);
+            // originalIndex 0: 50ml, originalIndex 1: 30ml, originalIndex 2-3: Additional
+            if (originalIndex === 0) {
+              imageFormData.append('is_50ml', '1');
+              imageFormData.append('is_additional', '0');
+            } else if (originalIndex === 1) {
+              imageFormData.append('is_50ml', '0');
+              imageFormData.append('is_additional', '0');
+            } else {
+              imageFormData.append('is_50ml', '0');
+              imageFormData.append('is_additional', '1');
+            }
 
-          try {
-            await api.post(
-              `/admin/products/${editingProduct.product_id}/upload-image`,
-              imageFormData
-            );
-            console.log(`Uploaded image ${index + 1}`);
-          } catch (err) {
-            console.error(`Failed to upload image ${index}:`, err);
+            try {
+              await api.post(
+                `/admin/products/${editingProduct.product_id}/upload-image`,
+                imageFormData
+              );
+              console.log(`Uploaded image ${originalIndex + 1}`);
+            } catch (err) {
+              console.error(`Failed to upload image ${originalIndex}:`, err);
+            }
           }
         }
       }

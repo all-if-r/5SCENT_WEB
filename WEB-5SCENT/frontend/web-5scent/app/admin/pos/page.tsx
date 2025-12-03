@@ -43,13 +43,12 @@ interface PaymentMethod {
 const PAYMENT_METHODS: PaymentMethod[] = [
   { label: 'Cash', value: 'Cash' },
   { label: 'QRIS', value: 'QRIS' },
-  { label: 'Virtual Account', value: 'Virtual_Account' },
+  { label: 'Virtual Account', value: 'Virtual Account' },
 ];
 
 export default function POSToolPage() {
   const router = useRouter();
   const { showToast } = useToast();
-  const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -62,8 +61,6 @@ export default function POSToolPage() {
   const [cashReceived, setCashReceived] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-  const [productsLoading, setProductsLoading] = useState(true);
-  const [showAllProducts, setShowAllProducts] = useState(false);
 
   // Get current date
   const currentDate = new Date().toLocaleDateString('id-ID', {
@@ -71,25 +68,6 @@ export default function POSToolPage() {
     month: '2-digit',
     day: '2-digit',
   });
-
-  // Fetch all products on component mount
-  useEffect(() => {
-    const fetchAllProducts = async () => {
-      setProductsLoading(true);
-      try {
-        const response = await api.get('/products');
-        const allProducts = response.data.products || response.data || [];
-        setProducts(allProducts);
-      } catch (error) {
-        console.error('Failed to fetch products:', error);
-        showToast('Failed to load products', 'error');
-      } finally {
-        setProductsLoading(false);
-      }
-    };
-
-    fetchAllProducts();
-  }, []);
 
   // Search products
   const handleSearch = async (query: string) => {
@@ -106,13 +84,6 @@ export default function POSToolPage() {
         params: { q: query },
       });
       setSearchResults(response.data);
-      
-      // Auto-select the first search result if it's a product match
-      if (response.data && response.data.length > 0) {
-        const firstResult = response.data[0];
-        setSelectedProduct(firstResult);
-        setQuantity(1);
-      }
     } catch (error) {
       console.error('Failed to search products:', error);
       showToast('Failed to search products', 'error');
@@ -122,19 +93,12 @@ export default function POSToolPage() {
     }
   };
 
-  // Select product - toggle on click
+  // Select product
   const handleSelectProduct = (product: Product) => {
-    // If clicking the same product, deselect it
-    if (selectedProduct?.product_id === product.product_id) {
-      setSelectedProduct(null);
-      setQuantity(1);
-    } else {
-      // Select the new product
-      setSelectedProduct(product);
-      setSearchQuery('');
-      setSearchResults([]);
-      setQuantity(1);
-    }
+    setSelectedProduct(product);
+    setSearchQuery('');
+    setSearchResults([]);
+    setQuantity(1);
   };
 
   // Add to cart
@@ -215,33 +179,31 @@ export default function POSToolPage() {
   };
 
   // Handle download receipt
-  const handleDownloadReceipt = async (transactionId: string, customerName: string) => {
+  const handleDownloadReceipt = async (transactionId: string) => {
     try {
       const response = await api.get(
-        `/admin/pos/transactions/${transactionId}/download-receipt`,
+        `/admin/pos/transactions/${transactionId}/receipt`,
         { responseType: 'blob' }
       );
       
-      // Sanitize customer name: replace spaces and special characters with underscore
-      const sanitizedName = customerName
-        .replace(/[^a-zA-Z0-9_-]/g, '_')
-        .replace(/_+/g, '_')
-        .replace(/^_+|_+$/g, '');
+      // Extract filename from Content-Disposition header, or use default
+      let filename = `pos-receipt-${transactionId}.pdf`;
+      const contentDisposition = response.headers['content-disposition'];
+      if (contentDisposition) {
+        const filenamePart = contentDisposition.split('filename=')[1];
+        if (filenamePart) {
+          filename = filenamePart.replace(/"/g, '').split(';')[0];
+        }
+      }
       
-      // Create filename
-      const filename = `pos-receipt-${transactionId}-${sanitizedName || 'Customer'}.pdf`;
-      
-      // Create blob and download
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
-      link.parentElement?.removeChild(link);
+      link.parentChild?.removeChild(link);
       window.URL.revokeObjectURL(url);
-      
-      showToast('Receipt downloaded successfully', 'success');
     } catch (error) {
       console.error('Failed to download receipt:', error);
       showToast('Failed to download receipt', 'error');
@@ -297,9 +259,9 @@ export default function POSToolPage() {
       
       showToast('Transaction created successfully', 'success');
       
-      // Download receipt immediately with customer name for proper filename
+      // Download receipt immediately
       setTimeout(() => {
-        handleDownloadReceipt(transactionId, customerName);
+        handleDownloadReceipt(transactionId);
       }, 500);
 
       // Reset form
@@ -368,63 +330,6 @@ export default function POSToolPage() {
                 >
                   Search
                 </button>
-              </div>
-
-              {/* Product Grid */}
-              <div className="mb-6">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-sm font-medium text-gray-700">
-                    Available: {products.length}
-                  </span>
-                </div>
-                
-                {productsLoading ? (
-                  <div className="text-center py-8">
-                    <p className="text-gray-500">Loading products...</p>
-                  </div>
-                ) : products.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-gray-500">No products available</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-3 gap-2">
-                      {(showAllProducts ? products : products.slice(0, 3)).map((product) => {
-                        const isSelected =
-                          selectedProduct?.product_id === product.product_id;
-
-                        return (
-                          <div
-                            key={product.product_id}
-                            role="button"
-                            onClick={() => handleSelectProduct(product)}
-                            className={`h-24 rounded-lg border p-2 flex flex-col justify-center items-center text-center cursor-pointer transition-all ${
-                              isSelected
-                                ? 'bg-black text-white border-black'
-                                : 'bg-white text-black border-gray-300 hover:border-gray-400'
-                            }`}
-                          >
-                            <p className={`text-xs ${isSelected ? 'opacity-70' : 'opacity-70 text-gray-600'}`}>
-                              ID: {product.product_id}
-                            </p>
-                            <p className="font-medium text-xs line-clamp-2">{product.name}</p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    
-                    {products.length > 3 && (
-                      <div className="mt-4 flex justify-center">
-                        <button
-                          onClick={() => setShowAllProducts(!showAllProducts)}
-                          className="rounded-full bg-black px-6 py-2 font-medium text-white hover:bg-gray-800 transition-all"
-                        >
-                          {showAllProducts ? 'Show less' : 'Show more'}
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
               </div>
 
               {/* Selected Product */}
