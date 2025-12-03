@@ -108,7 +108,6 @@ class PosController extends Controller
         }
 
         // Create POS transaction with all fields
-        // Eloquent will automatically set created_at and updated_at
         $transaction = PosTransaction::create([
             'admin_id' => $admin->admin_id,
             'customer_name' => $validated['customer_name'],
@@ -117,6 +116,7 @@ class PosController extends Controller
             'cash_received' => $validated['payment_method'] === 'Cash' ? $validated['cash_received'] : null,
             'cash_change' => $cashChange,
             'total_price' => $totalPrice,
+            'date' => now(),
         ]);
 
         // Create POS items and update stock
@@ -146,7 +146,7 @@ class PosController extends Controller
     }
 
     /**
-     * Generate PDF receipt for a transaction
+     * Generate PDF receipt for a transaction - Simplified version
      */
     public function generateReceipt($transactionId)
     {
@@ -154,30 +154,36 @@ class PosController extends Controller
             $transaction = PosTransaction::with('items.product', 'admin')
                 ->findOrFail($transactionId);
 
-            \Log::info('POS receipt timestamp', [
-                'transaction_id' => $transaction->transaction_id,
-                'created_at' => $transaction->created_at,
-                'app_timezone' => config('app.timezone'),
-            ]);
-
+            // Prepare data for PDF
             $data = [
                 'transaction' => $transaction,
                 'items' => $transaction->items,
                 'admin' => $transaction->admin,
             ];
 
+            // Load and generate PDF
             $pdf = PDF::loadView('pos.receipt', $data);
             
-            // Sanitize customer name: replace spaces with underscores, remove special characters
-            // Keep alphanumeric, spaces (to be replaced), hyphens, and underscores
-            $customerName = preg_replace('/[^a-zA-Z0-9\s\-]/', '', $transaction->customer_name);
-            $customerName = str_replace(' ', '_', trim($customerName));
+            // Create safe filename: pos-receipt-{transaction_id}-{customer_name}
+            $sanitizedName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $transaction->customer_name);
+            $filename = 'pos-receipt-' . $transaction->transaction_id . '-' . $sanitizedName . '.pdf';
             
-            $filename = "pos-receipt-{$transaction->transaction_id}-{$customerName}.pdf";
+            // Log the filename being generated
+            \Log::info('PDF receipt generated', [
+                'transaction_id' => $transactionId,
+                'customer_name' => $transaction->customer_name,
+                'sanitized_name' => $sanitizedName,
+                'filename' => $filename,
+            ]);
             
+            // Return PDF with proper Content-Disposition header
             return $pdf->download($filename);
         } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+            \Log::error('generateReceipt error', [
+                'transaction_id' => $transactionId,
+                'message' => $e->getMessage(),
+            ]);
+            return response()->json(['error' => 'Failed to generate receipt'], 500);
         }
     }
 
@@ -198,7 +204,7 @@ class PosController extends Controller
     public function indexTransactions()
     {
         $transactions = PosTransaction::with('items.product', 'admin')
-            ->orderBy('created_at', 'desc')
+            ->orderBy('date', 'desc')
             ->paginate(20);
 
         return response()->json($transactions);

@@ -178,7 +178,7 @@
         <!-- Header -->
         <div class="header">
             <div class="brand">5SCENT</div>
-            <div class="timestamp"><?php echo e($transaction->date->format('Y-m-d H:i:s')); ?></div>
+            <div class="timestamp"><?php echo e($transaction->created_at->format('Y-m-d H:i:s')); ?></div>
         </div>
 
         <!-- Admin and Customer Details -->

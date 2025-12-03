@@ -89,7 +89,6 @@ export default function ProductsPage() {
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<(string | null)[]>([null, null, null, null]);
   const [existingImages, setExistingImages] = useState<ProductImage[]>([]);
-  const [existingImagesBySlot, setExistingImagesBySlot] = useState<(ProductImage | null)[]>([null, null, null, null]);
   const [imagesToDelete, setImagesToDelete] = useState<number[]>([]);
 
   const categories = ['All Categories', 'Day', 'Night'];
@@ -150,7 +149,6 @@ export default function ProductsPage() {
     setUploadedImages([]);
     setImagePreviews([null, null, null, null]);
     setExistingImages([]);
-    setExistingImagesBySlot([null, null, null, null]);
     setImagesToDelete([]);
     setModalError(null);
     setShowAddModal(true);
@@ -177,31 +175,26 @@ export default function ProductsPage() {
 
       setExistingImages(productData.images || []);
       const previews: (string | null)[] = [null, null, null, null];
-      const imagesBySlot: (ProductImage | null)[] = [null, null, null, null];
-      
       productData.images?.forEach((img: ProductImage) => {
         const is50ml = img.is_50ml === true || img.is_50ml === 1;
         const isAdditional = img.is_additional === true || img.is_additional === 1;
         
         if (is50ml && !isAdditional) {
           previews[0] = img.image_url; // 50ml variant
-          imagesBySlot[0] = img;
         } else if (!is50ml && !isAdditional) {
-          previews[1] = img.image_url; // 30ml variant
-          imagesBySlot[1] = img;
+          if (!previews[1]) {
+            previews[1] = img.image_url; // 30ml variant
+          }
         } else if (isAdditional) {
           // Additional images
           if (!previews[2]) {
             previews[2] = img.image_url;
-            imagesBySlot[2] = img;
           } else if (!previews[3]) {
             previews[3] = img.image_url;
-            imagesBySlot[3] = img;
           }
         }
       });
       setImagePreviews(previews);
-      setExistingImagesBySlot(imagesBySlot);
       setUploadedImages([]);
       setImagesToDelete([]);
       setModalError(null);
@@ -217,7 +210,6 @@ export default function ProductsPage() {
     setShowEditModal(false);
     setEditingProduct(null);
     setExistingImages([]);
-    setExistingImagesBySlot([null, null, null, null]);
     setImagesToDelete([]);
     setModalError(null);
   };
@@ -228,9 +220,7 @@ export default function ProductsPage() {
     previews[index] = null;
     setImagePreviews(previews);
     
-    const slotImages = [...existingImagesBySlot];
-    slotImages[index] = null;
-    setExistingImagesBySlot(slotImages);
+    setExistingImages(existingImages.filter(img => img.image_id !== imageId));
   };
 
   const handleInputChange = (
@@ -255,16 +245,6 @@ export default function ProductsPage() {
         const previews = [...imagePreviews];
         previews[index] = event.target?.result as string;
         setImagePreviews(previews);
-        
-        // Mark for deletion if there's an existing image in this slot
-        const existingImage = existingImagesBySlot[index];
-        if (existingImage && !imagesToDelete.includes(existingImage.image_id)) {
-          setImagesToDelete([...imagesToDelete, existingImage.image_id]);
-          // Remove from existing images by slot
-          const slotImages = [...existingImagesBySlot];
-          slotImages[index] = null;
-          setExistingImagesBySlot(slotImages);
-        }
       };
       reader.readAsDataURL(file);
     }
@@ -325,12 +305,7 @@ export default function ProductsPage() {
           const image = uploadedImages[originalIndex];
           if (image) {
             const imageFormData = new FormData();
-            // Rename file with the naming convention
-            const filename = getImageFilename(formData.name, originalIndex);
-            const renamedFile = new File([image], `${filename}.${image.name.split('.').pop()}`, {
-              type: image.type,
-            });
-            imageFormData.append('image', renamedFile);
+            imageFormData.append('image', image);
             // originalIndex 0: 50ml, originalIndex 1: 30ml, originalIndex 2-3: Additional
             if (originalIndex === 0) {
               imageFormData.append('is_50ml', '1');
@@ -348,7 +323,7 @@ export default function ProductsPage() {
                 `/admin/products/${editingProduct.product_id}/upload-image`,
                 imageFormData
               );
-              console.log(`Uploaded image ${originalIndex + 1} with filename: ${filename}`);
+              console.log(`Uploaded image ${originalIndex + 1}`);
             } catch (err) {
               console.error(`Failed to upload image ${originalIndex}:`, err);
             }
@@ -423,12 +398,7 @@ export default function ProductsPage() {
       // Upload images for the new product
       for (const [index, image] of newImagesToUpload.entries()) {
         const imageFormData = new FormData();
-        // Rename file with the naming convention
-        const filename = getImageFilename(formData.name, index);
-        const renamedFile = new File([image], `${filename}.${image.name.split('.').pop()}`, {
-          type: image.type,
-        });
-        imageFormData.append('image', renamedFile);
+        imageFormData.append('image', image);
         imageFormData.append('is_50ml', index === 0 ? '1' : '0');
 
         try {
@@ -436,7 +406,7 @@ export default function ProductsPage() {
             `/admin/products/${newProductId}/upload-image`,
             imageFormData
           );
-          console.log(`Uploaded image ${index + 1} with filename: ${filename}`);
+          console.log(`Uploaded image ${index + 1}`);
         } catch (err) {
           console.error(`Failed to upload image ${index}:`, err);
         }
@@ -487,24 +457,6 @@ export default function ProductsPage() {
     } catch (error) {
       console.error('Error deleting product:', error);
       showToast('Failed to delete product', 'error');
-    }
-  };
-
-  const getImageFilename = (productName: string, slotIndex: number): string => {
-    // Remove spaces and special characters from product name
-    const cleanName = productName.replace(/\s+/g, '').toLowerCase();
-    
-    switch (slotIndex) {
-      case 0:
-        return `${cleanName}50ml`;
-      case 1:
-        return `${cleanName}30ml`;
-      case 2:
-        return `additional${cleanName}1`;
-      case 3:
-        return `additional${cleanName}2`;
-      default:
-        return cleanName;
     }
   };
 
@@ -884,8 +836,8 @@ export default function ProductsPage() {
 
                 <div className="grid grid-cols-4 gap-3">
                   {[0, 1, 2, 3].map((index) => {
-                    const existingImage = existingImagesBySlot[index];
-                    const isDeleted = existingImage && imagesToDelete.includes(existingImage.image_id);
+                    const existingImage = existingImages[index];
+                    const isDeleted = imagesToDelete.includes(existingImage?.image_id);
                     
                     return (
                       <div key={index} className="relative">

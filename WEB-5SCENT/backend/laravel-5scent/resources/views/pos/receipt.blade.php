@@ -178,14 +178,7 @@
         <!-- Header -->
         <div class="header">
             <div class="brand">5SCENT</div>
-            <div class="timestamp">
-                @php
-                    $timestamp = $transaction->created_at
-                        ? $transaction->created_at->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s')
-                        : now()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s');
-                @endphp
-                {{ $timestamp }}
-            </div>
+            <div class="timestamp">{{ $transaction->created_at->format('Y-m-d H:i:s') }}</div>
         </div>
 
         <!-- Admin and Customer Details -->

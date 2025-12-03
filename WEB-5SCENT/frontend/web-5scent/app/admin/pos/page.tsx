@@ -51,10 +51,7 @@ export default function POSToolPage() {
   const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
-  const [showAllProducts, setShowAllProducts] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
   const [selectedSize, setSelectedSize] = useState<'30ml' | '50ml'>('30ml');
   const [quantity, setQuantity] = useState(1);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -71,19 +68,6 @@ export default function POSToolPage() {
     month: '2-digit',
     day: '2-digit',
   });
-
-  // Fetch all products on mount
-  useEffect(() => {
-    const fetchAllProducts = async () => {
-      try {
-        const response = await api.get('/products');
-        setAllProducts(response.data.products || response.data);
-      } catch (error) {
-        console.error('Failed to fetch products:', error);
-      }
-    };
-    fetchAllProducts();
-  }, []);
 
   // Search products
   const handleSearch = async (query: string) => {
@@ -111,17 +95,10 @@ export default function POSToolPage() {
 
   // Select product
   const handleSelectProduct = (product: Product) => {
-    // Toggle selection logic - if clicking the same product, deselect it
-    if (selectedProductId === product.product_id) {
-      setSelectedProduct(null);
-      setSelectedProductId(null);
-      setQuantity(1);
-    } else {
-      setSelectedProduct(product);
-      setSelectedProductId(product.product_id);
-      setSelectedSize('30ml');
-      setQuantity(1);
-    }
+    setSelectedProduct(product);
+    setSearchQuery('');
+    setSearchResults([]);
+    setQuantity(1);
   };
 
   // Add to cart
@@ -209,24 +186,31 @@ export default function POSToolPage() {
         { responseType: 'blob' }
       );
       
-      // Extract filename from Content-Disposition header, or use default
-      let filename = `pos-receipt-${transactionId}.pdf`;
-      const contentDisposition = response.headers['content-disposition'];
-      if (contentDisposition) {
-        const filenamePart = contentDisposition.split('filename=')[1];
-        if (filenamePart) {
-          filename = filenamePart.replace(/"/g, '').split(';')[0];
-        }
-      }
+      // Get transaction data to construct filename with customer name
+      const transactionResponse = await api.get(`/admin/pos/transactions/${transactionId}`);
+      const transaction = transactionResponse.data;
       
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      // Create filename: pos-receipt-{transaction_id}-{customer_name}
+      const sanitizedName = transaction.customer_name.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const filename = `pos-receipt-${transaction.transaction_id}-${sanitizedName}.pdf`;
+      
+      console.log('Downloading receipt with filename:', filename);
+      
+      // Create blob and download
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', filename);
+      
+      link.href = downloadUrl;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
-      link.parentChild?.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      
+      showToast('Receipt downloaded successfully', 'success');
     } catch (error) {
       console.error('Failed to download receipt:', error);
       showToast('Failed to download receipt', 'error');
@@ -354,47 +338,6 @@ export default function POSToolPage() {
                   Search
                 </button>
               </div>
-
-              {/* Available Products Text */}
-              {allProducts.length > 0 && (
-                <div className="mb-4">
-                  <p className="text-sm text-gray-600">
-                    Available: {allProducts.map(p => p.product_id).join(', ')}
-                  </p>
-                </div>
-              )}
-
-              {/* Products Grid - Show 3 by default, with Show More/Less button */}
-              {allProducts.length > 0 && (
-                <div className="mb-6 space-y-4">
-                  <div className="grid grid-cols-3 gap-4">
-                    {allProducts.slice(0, showAllProducts ? allProducts.length : 3).map((product) => (
-                      <button
-                        key={product.product_id}
-                        onClick={() => handleSelectProduct(product)}
-                        className={`rounded-2xl border-2 p-4 transition-all ${
-                          selectedProductId === product.product_id
-                            ? 'border-black bg-black text-white'
-                            : 'border-gray-200 bg-white text-gray-900 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="text-xs text-gray-500 mb-1">ID: {product.product_id}</div>
-                        <div className="font-medium text-sm">{product.name}</div>
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Show More / Show Less Button */}
-                  {allProducts.length > 3 && (
-                    <button
-                      onClick={() => setShowAllProducts(!showAllProducts)}
-                      className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      {showAllProducts ? 'Show less' : 'Show more'}
-                    </button>
-                  )}
-                </div>
-              )}
 
               {/* Selected Product */}
               {selectedProduct && (
