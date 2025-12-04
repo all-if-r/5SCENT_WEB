@@ -17,12 +17,6 @@ class PosController extends Controller
      */
     private function getPosDate(PosTransaction $transaction)
     {
-        if (!empty($transaction->date)) {
-            return $transaction->date;
-        }
-        if (!empty($transaction->transaction_date)) {
-            return $transaction->transaction_date;
-        }
         return $transaction->created_at ?? now();
     }
 
@@ -83,7 +77,7 @@ class PosController extends Controller
         $validated = $request->validate([
             'customer_name' => 'required|string|max:100',
             'phone' => 'required|string|regex:/^\+62[0-9]{8,12}$/',
-            'payment_method' => 'required|in:Cash,QRIS,Virtual_Account',
+            'payment_method' => 'required|in:Cash,QRIS,Virtual Account',
             'cash_received' => 'nullable|numeric|min:0',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:product,product_id',
@@ -144,7 +138,6 @@ class PosController extends Controller
             'cash_received' => $validated['payment_method'] === 'Cash' ? $validated['cash_received'] : null,
             'cash_change' => $cashChange,
             'total_price' => $totalPrice,
-            'date' => now(),
         ]);
 
         // Create POS items and update stock

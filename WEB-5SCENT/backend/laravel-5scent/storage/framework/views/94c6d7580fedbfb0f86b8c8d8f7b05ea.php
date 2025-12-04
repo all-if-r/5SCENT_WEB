@@ -178,7 +178,7 @@
         <!-- Header -->
         <div class="header">
             <div class="brand">5SCENT</div>
-            <div class="timestamp"><?php echo e($transaction->date->setTimezone('Asia/Jakarta')->format('d/m/Y H:i:s')); ?></div>
+            <div class="timestamp"><?php echo e(now()->format('Y-m-d H:i:s')); ?></div>
         </div>
 
         <!-- Admin and Customer Details -->

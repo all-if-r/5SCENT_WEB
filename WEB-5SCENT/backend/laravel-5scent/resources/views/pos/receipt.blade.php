@@ -178,11 +178,7 @@
         <!-- Header -->
         <div class="header">
             <div class="brand">5SCENT</div>
-<<<<<<< HEAD
-            <div class="timestamp">{{ $transaction->created_at->format('Y-m-d H:i:s') }}</div>
-=======
-            <div class="timestamp">{{ $transaction->date->format('Y-m-d H:i:s') }}</div>
->>>>>>> parent of 68c6cf8 (Ver 24.4)
+            <div class="timestamp">{{ now()->format('Y-m-d H:i:s') }}</div>
         </div>
 
         <!-- Admin and Customer Details -->

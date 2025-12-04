@@ -83,5 +83,105 @@ class RatingController extends Controller
 
         return response()->json($rating, 200);
     }
+
+    /**
+     * Admin: Get all ratings/reviews with relationships
+     */
+    public function adminIndex()
+    {
+        try {
+            $reviews = Rating::with(['user', 'product', 'order'])
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            return response()->json($reviews, 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error fetching reviews',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Admin: Get a specific rating/review
+     */
+    public function adminShow($id)
+    {
+        try {
+            $review = Rating::with(['user', 'product', 'order'])
+                ->findOrFail($id);
+
+            return response()->json($review, 200);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'Review not found'
+            ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error fetching review',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Admin: Update visibility status of a review
+     */
+    public function adminUpdateVisibility(Request $request, $id)
+    {
+        try {
+            $validated = $request->validate([
+                'is_visible' => 'required|boolean'
+            ]);
+
+            $review = Rating::findOrFail($id);
+            $review->is_visible = $validated['is_visible'];
+            $review->save();
+
+            return response()->json([
+                'message' => 'Review visibility updated',
+                'review' => $review
+            ], 200);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'Review not found'
+            ], 404);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error updating review',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Admin: Delete a rating/review
+     */
+    public function adminDestroy($id)
+    {
+        try {
+            $review = Rating::findOrFail($id);
+            $review->delete();
+
+            return response()->json([
+                'message' => 'Review deleted successfully'
+            ], 200);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'Review not found'
+            ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error deleting review',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
 

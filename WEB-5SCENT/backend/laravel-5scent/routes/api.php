@@ -97,6 +97,14 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
         Route::get('/transactions/{id}', [PosController::class, 'getTransaction']);
         Route::get('/transactions/{id}/receipt', [PosController::class, 'generateReceipt']);
     });
+
+    // Reviews
+    Route::prefix('reviews')->group(function () {
+        Route::get('/', [RatingController::class, 'adminIndex']);
+        Route::get('/{id}', [RatingController::class, 'adminShow']);
+        Route::put('/{id}/visibility', [RatingController::class, 'adminUpdateVisibility']);
+        Route::delete('/{id}', [RatingController::class, 'adminDestroy']);
+    });
 });
 
 // Payment webhook (no auth required)
