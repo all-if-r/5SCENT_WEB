@@ -18,6 +18,8 @@ interface ProductImage {
   image_url: string;
   is_50ml: number;
   is_additional: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface Product {
@@ -175,25 +177,38 @@ export default function ProductsPage() {
 
       setExistingImages(productData.images || []);
       const previews: (string | null)[] = [null, null, null, null];
-      productData.images?.forEach((img: ProductImage) => {
-        const is50ml = img.is_50ml === true || img.is_50ml === 1;
-        const isAdditional = img.is_additional === true || img.is_additional === 1;
-        
-        if (is50ml && !isAdditional) {
-          previews[0] = img.image_url; // 50ml variant
-        } else if (!is50ml && !isAdditional) {
-          if (!previews[1]) {
-            previews[1] = img.image_url; // 30ml variant
-          }
-        } else if (isAdditional) {
-          // Additional images
-          if (!previews[2]) {
-            previews[2] = img.image_url;
-          } else if (!previews[3]) {
-            previews[3] = img.image_url;
-          }
+      
+      // Sort images to properly assign slots
+      const images = [...(productData.images || [])];
+      
+      // Separate main and additional images
+      const mainImages = images.filter((img: ProductImage) => !img.is_additional);
+      const additionalImages = images.filter((img: ProductImage) => img.is_additional);
+      
+      // Sort additional images by created_at to maintain order
+      additionalImages.sort((a: ProductImage, b: ProductImage) => {
+        const dateA = new Date(a.created_at || 0).getTime();
+        const dateB = new Date(b.created_at || 0).getTime();
+        return dateA - dateB;
+      });
+      
+      // Assign slots
+      mainImages.forEach((img: ProductImage) => {
+        if (img.is_50ml) {
+          previews[0] = img.image_url; // Slot 1: 50ml
+        } else {
+          previews[1] = img.image_url; // Slot 2: 30ml
         }
       });
+      
+      additionalImages.forEach((img: ProductImage, idx: number) => {
+        if (idx === 0) {
+          previews[2] = img.image_url; // Slot 3: Additional 1
+        } else if (idx === 1) {
+          previews[3] = img.image_url; // Slot 4: Additional 2
+        }
+      });
+      
       setImagePreviews(previews);
       setUploadedImages([]);
       setImagesToDelete([]);
@@ -259,25 +274,38 @@ export default function ProductsPage() {
 
       if (!editingProduct) return;
 
-      // First, update the product data (name, description, prices, stock, etc.)
-      const updatePayload = {
-        name: formData.name,
-        description: formData.description,
-        top_notes: formData.top_notes,
-        middle_notes: formData.middle_notes,
-        base_notes: formData.base_notes,
-        category: formData.category,
-        price_30ml: formData.price_30ml,
-        price_50ml: formData.price_50ml,
-        stock_30ml: formData.stock_30ml,
-        stock_50ml: formData.stock_50ml || formData.stock_30ml,
-      };
+      // Create FormData to handle both product data and images
+      const formDataPayload = new FormData();
+      formDataPayload.append('name', formData.name);
+      formDataPayload.append('description', formData.description);
+      formDataPayload.append('top_notes', formData.top_notes || '');
+      formDataPayload.append('middle_notes', formData.middle_notes || '');
+      formDataPayload.append('base_notes', formData.base_notes || '');
+      formDataPayload.append('category', formData.category);
+      formDataPayload.append('price_30ml', formData.price_30ml);
+      formDataPayload.append('price_50ml', formData.price_50ml);
+      formDataPayload.append('stock_30ml', formData.stock_30ml);
+      formDataPayload.append('stock_50ml', formData.stock_50ml);
+      formDataPayload.append('_method', 'PUT');
 
-      console.log('Updating product with data:', updatePayload);
+      // Add uploaded images to FormData with explicit slot keys
+      // Slot mapping: 0->1, 1->2, 2->3, 3->4
+      uploadedImages.forEach((image, index) => {
+        if (image) {
+          const slotKey = `image_slot_${index + 1}`;
+          formDataPayload.append(slotKey, image);
+          console.log(`Adding image for slot ${index + 1}:`, image.name);
+        }
+      });
 
-      const updateResponse = await api.put(
+      console.log('Updating product with FormData');
+
+      const updateResponse = await api.post(
         `/admin/products/${editingProduct.product_id}`,
-        updatePayload
+        formDataPayload,
+        {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        }
       );
 
       console.log('Product updated:', updateResponse.data);
@@ -291,42 +319,6 @@ export default function ProductsPage() {
             console.log(`Deleted image ${imageId}`);
           } catch (err) {
             console.error(`Failed to delete image ${imageId}:`, err);
-          }
-        }
-      }
-
-      // Finally, handle new image uploads
-      const newImagesToUpload = uploadedImages.filter(Boolean);
-      if (newImagesToUpload.length > 0) {
-        console.log('Uploading new images:', newImagesToUpload.length);
-        
-        // Find the actual positions of the uploaded images
-        for (let originalIndex = 0; originalIndex < uploadedImages.length; originalIndex++) {
-          const image = uploadedImages[originalIndex];
-          if (image) {
-            const imageFormData = new FormData();
-            imageFormData.append('image', image);
-            // originalIndex 0: 50ml, originalIndex 1: 30ml, originalIndex 2-3: Additional
-            if (originalIndex === 0) {
-              imageFormData.append('is_50ml', '1');
-              imageFormData.append('is_additional', '0');
-            } else if (originalIndex === 1) {
-              imageFormData.append('is_50ml', '0');
-              imageFormData.append('is_additional', '0');
-            } else {
-              imageFormData.append('is_50ml', '0');
-              imageFormData.append('is_additional', '1');
-            }
-
-            try {
-              await api.post(
-                `/admin/products/${editingProduct.product_id}/upload-image`,
-                imageFormData
-              );
-              console.log(`Uploaded image ${originalIndex + 1}`);
-            } catch (err) {
-              console.error(`Failed to upload image ${originalIndex}:`, err);
-            }
           }
         }
       }
@@ -374,43 +366,32 @@ export default function ProductsPage() {
         return;
       }
 
-      // Create product with base data
-      const createPayload = {
-        name: formData.name,
-        description: formData.description,
-        top_notes: formData.top_notes,
-        middle_notes: formData.middle_notes,
-        base_notes: formData.base_notes,
-        category: formData.category,
-        price_30ml: formData.price_30ml,
-        price_50ml: formData.price_50ml,
-        stock_30ml: formData.stock_30ml,
-        stock_50ml: formData.stock_50ml || formData.stock_30ml,
-      };
+      // Create FormData with product data and images
+      const formDataPayload = new FormData();
+      formDataPayload.append('name', formData.name);
+      formDataPayload.append('description', formData.description);
+      formDataPayload.append('top_notes', formData.top_notes);
+      formDataPayload.append('middle_notes', formData.middle_notes);
+      formDataPayload.append('base_notes', formData.base_notes);
+      formDataPayload.append('category', formData.category);
+      formDataPayload.append('price_30ml', formData.price_30ml);
+      formDataPayload.append('price_50ml', formData.price_50ml);
+      formDataPayload.append('stock_30ml', formData.stock_30ml);
+      formDataPayload.append('stock_50ml', formData.stock_50ml || formData.stock_30ml);
 
-      console.log('Creating product with data:', createPayload);
+      // Add images
+      uploadedImages.forEach((image, index) => {
+        if (image) {
+          formDataPayload.append(`images[${index}]`, image);
+        }
+      });
 
-      const createResponse = await api.post('/admin/products', createPayload);
+      console.log('Creating product with images');
+
+      const createResponse = await api.post('/admin/products', formDataPayload);
       const newProductId = createResponse.data.product_id || createResponse.data.id;
 
       console.log('Product created with ID:', newProductId);
-
-      // Upload images for the new product
-      for (const [index, image] of newImagesToUpload.entries()) {
-        const imageFormData = new FormData();
-        imageFormData.append('image', image);
-        imageFormData.append('is_50ml', index === 0 ? '1' : '0');
-
-        try {
-          await api.post(
-            `/admin/products/${newProductId}/upload-image`,
-            imageFormData
-          );
-          console.log(`Uploaded image ${index + 1}`);
-        } catch (err) {
-          console.error(`Failed to upload image ${index}:`, err);
-        }
-      }
 
       // Refresh the product list
       await fetchProducts();

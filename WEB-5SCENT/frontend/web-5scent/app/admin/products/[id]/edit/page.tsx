@@ -1,4 +1,4 @@
-'use client';
+  'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
@@ -11,6 +11,8 @@ interface ProductImage {
   product_id: number;
   image_url: string;
   is_50ml: number;
+  is_additional?: number;
+  created_at?: string;
 }
 
 interface Product {
@@ -82,17 +84,30 @@ export default function EditProductPage() {
       if (productData.images) {
         setExistingImages(productData.images);
         const previews: (string | null)[] = [null, null, null, null];
-        productData.images.forEach((img: ProductImage) => {
+
+        const images = [...productData.images];
+        const mainImages = images.filter((img) => !img.is_additional);
+        const additionalImages = images
+          .filter((img) => img.is_additional)
+          .sort((a, b) => {
+            const dateA = new Date(a.created_at || 0).getTime();
+            const dateB = new Date(b.created_at || 0).getTime();
+            return dateA - dateB;
+          });
+
+        mainImages.forEach((img: ProductImage) => {
           if (img.is_50ml === 1) {
             previews[0] = img.image_url;
-          } else if (!previews[1]) {
+          } else {
             previews[1] = img.image_url;
-          } else if (!previews[2]) {
-            previews[2] = img.image_url;
-          } else if (!previews[3]) {
-            previews[3] = img.image_url;
           }
         });
+
+        additionalImages.forEach((img: ProductImage, idx: number) => {
+          if (idx === 0) previews[2] = img.image_url;
+          if (idx === 1) previews[3] = img.image_url;
+        });
+
         setImagePreviews(previews);
       }
     } catch (err) {
@@ -152,7 +167,8 @@ export default function EditProductPage() {
 
       uploadedImages.forEach((image, index) => {
         if (image) {
-          updateData.append(`images`, image);
+          const slotKey = `image_slot_${index + 1}`;
+          updateData.append(slotKey, image);
         }
       });
 

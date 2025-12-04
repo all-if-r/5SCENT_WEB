@@ -51,6 +51,9 @@ export default function POSToolPage() {
   const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [showAllProducts, setShowAllProducts] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedSize, setSelectedSize] = useState<'30ml' | '50ml'>('30ml');
   const [quantity, setQuantity] = useState(1);
@@ -68,6 +71,21 @@ export default function POSToolPage() {
     month: '2-digit',
     day: '2-digit',
   });
+
+  // Load all products on mount
+  useEffect(() => {
+    const loadAllProducts = async () => {
+      try {
+        const response = await api.get('/admin/pos/products/search', {
+          params: { q: '' },
+        });
+        setAllProducts(response.data);
+      } catch (error) {
+        console.error('Failed to load products:', error);
+      }
+    };
+    loadAllProducts();
+  }, []);
 
   // Search products
   const handleSearch = async (query: string) => {
@@ -95,10 +113,18 @@ export default function POSToolPage() {
 
   // Select product
   const handleSelectProduct = (product: Product) => {
-    setSelectedProduct(product);
-    setSearchQuery('');
-    setSearchResults([]);
-    setQuantity(1);
+    if (selectedProductId === product.product_id) {
+      // If same product clicked, deselect it
+      setSelectedProductId(null);
+      setSelectedProduct(null);
+    } else {
+      // Select new product
+      setSelectedProductId(product.product_id);
+      setSelectedProduct(product);
+      setSearchQuery('');
+      setSearchResults([]);
+      setQuantity(1);
+    }
   };
 
   // Add to cart
@@ -337,6 +363,39 @@ export default function POSToolPage() {
                 >
                   Search
                 </button>
+              </div>
+
+              {/* Product Grid */}
+              <div className="mb-6">
+                <p className="text-sm text-gray-600 mb-4">
+                  Available: {allProducts.map((p, i) => (i > 0 ? ', ' : '') + `${p.product_id}`).join('')}
+                </p>
+                
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  {allProducts.slice(0, showAllProducts ? allProducts.length : 3).map((product) => (
+                    <button
+                      key={product.product_id}
+                      onClick={() => handleSelectProduct(product)}
+                      className={`rounded-xl p-4 border-2 transition-all ${
+                        selectedProductId === product.product_id
+                          ? 'border-black bg-black text-white'
+                          : 'border-gray-200 bg-white text-gray-900 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="text-sm font-medium">ID: {product.product_id}</div>
+                      <div className="mt-2 text-base font-semibold">{product.name}</div>
+                    </button>
+                  ))}
+                </div>
+
+                {allProducts.length > 3 && (
+                  <button
+                    onClick={() => setShowAllProducts(!showAllProducts)}
+                    className="w-full rounded-lg bg-black px-4 py-2 font-medium text-white hover:bg-gray-800"
+                  >
+                    {showAllProducts ? 'Show less' : 'Show more'}
+                  </button>
+                )}
               </div>
 
               {/* Selected Product */}

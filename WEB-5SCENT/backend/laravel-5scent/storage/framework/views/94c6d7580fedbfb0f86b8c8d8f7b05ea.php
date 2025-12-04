@@ -178,15 +178,7 @@
         <!-- Header -->
         <div class="header">
             <div class="brand">5SCENT</div>
-            <div class="timestamp">
-                <?php
-                    $timestamp = $transaction->created_at
-                        ? $transaction->created_at->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s')
-                        : now()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s');
-                ?>
-                <?php echo e($timestamp); ?>
-
-            </div>
+            <div class="timestamp"><?php echo e($transaction->date->setTimezone('Asia/Jakarta')->format('d/m/Y H:i:s')); ?></div>
         </div>
 
         <!-- Admin and Customer Details -->

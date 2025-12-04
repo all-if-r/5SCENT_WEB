@@ -13,21 +13,49 @@ use Carbon\Carbon;
 class PosController extends Controller
 {
     /**
-     * Search products by code or name
+     * Get best available date for a POS transaction
+     */
+    private function getPosDate(PosTransaction $transaction)
+    {
+        if (!empty($transaction->date)) {
+            return $transaction->date;
+        }
+        if (!empty($transaction->transaction_date)) {
+            return $transaction->transaction_date;
+        }
+        return $transaction->created_at ?? now();
+    }
+
+    /**
+     * Build display code for POS orders, e.g. #POS-01-12-2025-001
+     */
+    private function formatPosCode(PosTransaction $transaction): string
+    {
+        $dateValue = $this->getPosDate($transaction);
+        $date = \Carbon\Carbon::parse($dateValue)->format('d-m-Y');
+        $idPart = str_pad($transaction->transaction_id, 3, '0', STR_PAD_LEFT);
+        return '#POS-' . $date . '-' . $idPart;
+    }
+
+    /**
+     * Search products by code or name, or get all products if search is empty
      */
     public function searchProducts(Request $request)
     {
         $search = $request->input('q', '');
 
+        // If search is empty, return all products
         if (strlen($search) < 1) {
-            return response()->json(['message' => 'Search query too short'], 400);
+            $products = Product::select('product_id', 'name', 'price_30ml', 'price_50ml', 'stock_30ml', 'stock_50ml')
+                ->orderBy('product_id')
+                ->get();
+        } else {
+            $products = Product::where('product_id', 'LIKE', "%{$search}%")
+                ->orWhere('name', 'LIKE', "%{$search}%")
+                ->select('product_id', 'name', 'price_30ml', 'price_50ml', 'stock_30ml', 'stock_50ml')
+                ->limit(10)
+                ->get();
         }
-
-        $products = Product::where('product_id', 'LIKE', "%{$search}%")
-            ->orWhere('name', 'LIKE', "%{$search}%")
-            ->select('product_id', 'name', 'price_30ml', 'price_50ml', 'stock_30ml', 'stock_50ml')
-            ->limit(10)
-            ->get();
 
         // Add images for each product
         $products = $products->map(function ($product) {
@@ -55,7 +83,7 @@ class PosController extends Controller
         $validated = $request->validate([
             'customer_name' => 'required|string|max:100',
             'phone' => 'required|string|regex:/^\+62[0-9]{8,12}$/',
-            'payment_method' => 'required|in:Cash,QRIS,Virtual Account',
+            'payment_method' => 'required|in:Cash,QRIS,Virtual_Account',
             'cash_received' => 'nullable|numeric|min:0',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:product,product_id',
@@ -192,8 +220,11 @@ class PosController extends Controller
      */
     public function getTransaction($id)
     {
-        $transaction = PosTransaction::with('items.product', 'admin')
+        $transaction = PosTransaction::with('items.product.images', 'admin')
             ->findOrFail($id);
+
+        // Attach formatted code for UI
+        $transaction->pos_code = $this->formatPosCode($transaction);
 
         return response()->json($transaction);
     }
@@ -201,11 +232,27 @@ class PosController extends Controller
     /**
      * Get all transactions
      */
-    public function indexTransactions()
+    public function indexTransactions(Request $request)
     {
-        $transactions = PosTransaction::with('items.product', 'admin')
-            ->orderBy('date', 'desc')
-            ->paginate(20);
+        $search = $request->input('q', '');
+        $perPage = (int)$request->input('per_page', 20) ?: 20;
+
+        $transactions = PosTransaction::with('items.product.images', 'admin')
+            ->when(strlen($search) > 0, function ($query) use ($search) {
+                $query->where(function ($inner) use ($search) {
+                    $inner->where('transaction_id', 'like', '%' . $search . '%')
+                        ->orWhere('customer_name', 'like', '%' . $search . '%');
+                });
+            })
+            ->orderByDesc('created_at')
+            ->paginate($perPage);
+
+        // Map formatted POS code for each transaction
+        $transactions->getCollection()->transform(function ($transaction) {
+            $transaction->pos_code = $this->formatPosCode($transaction);
+            $transaction->display_date = \Carbon\Carbon::parse($this->getPosDate($transaction))->format('Y-m-d');
+            return $transaction;
+        });
 
         return response()->json($transactions);
     }
