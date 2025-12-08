@@ -55,4 +55,12 @@ class Order extends Model
     {
         return $this->status === 'Packaging';
     }
+
+    /**
+     * Scope to filter completed orders (Packaging, Shipping, Delivered)
+     */
+    public function scopeCompleted($query)
+    {
+        return $query->whereIn('status', ['Packaging', 'Shipping', 'Delivered']);
+    }
 }

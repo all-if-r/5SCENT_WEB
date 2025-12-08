@@ -6,6 +6,8 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\Payment;
+use App\Models\PosTransaction;
+use App\Services\SalesReportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -35,12 +37,22 @@ class DashboardController extends Controller
         ]);
     }
 
-    public function dashboardData(Request $request)
+    public function dashboardData(Request $request, SalesReportService $salesReportService)
     {
-        $timeFrame = $request->input('timeframe', 'month'); // week, month, year
+        $timeFrame = strtolower($request->input('timeframe', 'month')); // week, month, year, monthly, yearly
+        
+        // Normalize timeframe values
+        if ($timeFrame === 'monthly') {
+            $timeFrame = 'month';
+        } elseif ($timeFrame === 'yearly') {
+            $timeFrame = 'year';
+        }
+        
+        // Get most sold product
+        $mostSoldProduct = $salesReportService->getMostSoldProduct() ?? 'N/A';
         
         // Calculate date range
-        if ($timeFrame === 'week') {
+        if ($timeFrame === 'week' || $timeFrame === 'weekly') {
             $startDate = now()->startOfWeek();
             $endDate = now()->endOfWeek();
         } elseif ($timeFrame === 'year') {
@@ -51,70 +63,165 @@ class DashboardController extends Controller
             $endDate = now()->endOfMonth();
         }
 
-        // Order stats
+        // Order stats - include both orders and POS transactions for total
+        // Count ALL orders for total transactions, but only Packaging/Shipping/Delivered for revenue
+        $totalOrders = Order::count();
+        $totalPosTransactions = PosTransaction::count();
         $orderStats = [
-            'total' => Order::count(),
+            'total' => $totalOrders + $totalPosTransactions,
             'packaging' => Order::where('status', 'Packaging')->count(),
             'shipping' => Order::where('status', 'Shipping')->count(),
             'delivered' => Order::where('status', 'Delivered')->count(),
             'cancelled' => Order::where('status', 'Cancelled')->count(),
         ];
 
-        // Total revenue
-        $totalRevenue = Payment::where('status', 'Success')->sum('amount') ?? 0;
-        $previousMonthRevenue = Payment::where('status', 'Success')
-            ->whereBetween('transaction_time', [now()->subMonth()->startOfMonth(), now()->subMonth()->endOfMonth()])
-            ->sum('amount') ?? 0;
-        $revenueChange = $previousMonthRevenue > 0 ? (($totalRevenue - $previousMonthRevenue) / $previousMonthRevenue) * 100 : 0;
+        // Total revenue - exclude Pending orders + include POS transactions
+        $orderRevenue = Order::whereIn('status', ['Packaging', 'Shipping', 'Delivered'])
+            ->sum('total_price') ?? 0;
+        $posRevenue = PosTransaction::sum('total_price') ?? 0;
+        $totalRevenue = $orderRevenue + $posRevenue;
+        
+        // Previous month revenue - exclude Pending orders + include POS transactions
+        $previousOrderRevenue = Order::whereIn('status', ['Packaging', 'Shipping', 'Delivered'])
+            ->whereBetween('created_at', [now()->subMonth()->startOfMonth(), now()->subMonth()->endOfMonth()])
+            ->sum('total_price') ?? 0;
+        $previousPosRevenue = PosTransaction::whereBetween('created_at', [now()->subMonth()->startOfMonth(), now()->subMonth()->endOfMonth()])
+            ->sum('total_price') ?? 0;
+        $previousMonthRevenue = $previousOrderRevenue + $previousPosRevenue;
+        
+        $revenueChange = $previousMonthRevenue > 0 
+            ? (($totalRevenue - $previousMonthRevenue) / $previousMonthRevenue) * 100 
+            : 0;
 
-        // Average order value
-        $averageOrderValue = Order::avg('total_price') ?? 0;
+        // Average order value - exclude Pending orders + include POS transactions
+        $completedOrdersCount = Order::whereIn('status', ['Packaging', 'Shipping', 'Delivered'])->count();
+        $posTransactionCount = PosTransaction::count();
+        $totalTransactionCount = $completedOrdersCount + $posTransactionCount;
+        $averageOrderValue = $totalTransactionCount > 0 
+            ? $totalRevenue / $totalTransactionCount 
+            : 0;
 
         // Total products
         $totalProducts = Product::count();
 
         // Sales data
-        if ($timeFrame === 'week') {
+        if ($timeFrame === 'daily') {
             $salesData = [];
+            $dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
             for ($i = 0; $i < 7; $i++) {
                 $date = now()->startOfWeek()->addDays($i);
-                $value = Order::whereDate('created_at', $date)
+                // Count only Delivered, Shipping, Packaging orders + all POS
+                $orderCount = Order::whereDate('created_at', $date)
+                    ->whereIn('status', ['Delivered', 'Shipping', 'Packaging'])
+                    ->count();
+                $posCount = PosTransaction::whereDate('created_at', $date)->count();
+                $totalCount = $orderCount + $posCount;
+                
+                // Sum revenue only from Packaging, Shipping, Delivered status
+                $orderValue = Order::whereDate('created_at', $date)
                     ->whereIn('status', ['Delivered', 'Shipping', 'Packaging'])
                     ->sum('total_price') ?? 0;
+                $posValue = PosTransaction::whereDate('created_at', $date)
+                    ->sum('total_price') ?? 0;
+                $value = $orderValue + $posValue;
+                $avgOrder = $totalCount > 0 ? $value / $totalCount : 0;
+                
+                $dayOfWeek = $date->dayOfWeek; // 0 = Sunday, 1 = Monday, etc.
+                $salesData[] = [
+                    'label' => $dayNames[$dayOfWeek],
+                    'orders' => $totalCount,
+                    'revenue' => (float)$value,
+                    'avgOrder' => (float)$avgOrder,
+                ];
+            }
+        } elseif ($timeFrame === 'weekly') {
+            $salesData = [];
+            for ($i = 0; $i < 4; $i++) {
+                // Week starting from Monday of week i
+                $weekStart = now()->startOfWeek()->addWeeks($i);
+                $weekEnd = $weekStart->copy()->endOfWeek();
+                
+                // Count only Delivered, Shipping, Packaging orders + all POS
+                $orderCount = Order::whereBetween('created_at', [$weekStart, $weekEnd])
+                    ->whereIn('status', ['Delivered', 'Shipping', 'Packaging'])
+                    ->count();
+                $posCount = PosTransaction::whereBetween('created_at', [$weekStart, $weekEnd])->count();
+                $totalCount = $orderCount + $posCount;
+                
+                // Sum revenue only from Packaging, Shipping, Delivered status
+                $orderValue = Order::whereBetween('created_at', [$weekStart, $weekEnd])
+                    ->whereIn('status', ['Delivered', 'Shipping', 'Packaging'])
+                    ->sum('total_price') ?? 0;
+                $posValue = PosTransaction::whereBetween('created_at', [$weekStart, $weekEnd])
+                    ->sum('total_price') ?? 0;
+                $value = $orderValue + $posValue;
+                $avgOrder = $totalCount > 0 ? $value / $totalCount : 0;
                 
                 $salesData[] = [
-                    'label' => $date->format('D'),
-                    'value' => (float)$value,
+                    'label' => 'Week ' . ($i + 1),
+                    'orders' => $totalCount,
+                    'revenue' => (float)$value,
+                    'avgOrder' => (float)$avgOrder,
                 ];
             }
         } elseif ($timeFrame === 'year') {
+            // Show years: current year and 10 years back (e.g., 2015-2025)
             $salesData = [];
-            for ($i = 1; $i <= 12; $i++) {
-                $value = Order::whereMonth('created_at', $i)
-                    ->whereYear('created_at', now()->year)
+            $currentYear = now()->year;
+            for ($i = 10; $i >= 0; $i--) {
+                $year = $currentYear - $i;
+                // Count only Delivered, Shipping, Packaging orders + all POS
+                $orderCount = Order::whereYear('created_at', $year)
+                    ->whereIn('status', ['Delivered', 'Shipping', 'Packaging'])
+                    ->count();
+                $posCount = PosTransaction::whereYear('created_at', $year)->count();
+                $totalCount = $orderCount + $posCount;
+                
+                // Sum revenue only from Packaging, Shipping, Delivered status
+                $orderValue = Order::whereYear('created_at', $year)
                     ->whereIn('status', ['Delivered', 'Shipping', 'Packaging'])
                     ->sum('total_price') ?? 0;
+                $posValue = PosTransaction::whereYear('created_at', $year)
+                    ->sum('total_price') ?? 0;
+                $value = $orderValue + $posValue;
+                $avgOrder = $totalCount > 0 ? $value / $totalCount : 0;
                 
                 $salesData[] = [
-                    'label' => Carbon::create(now()->year, $i, 1)->format('M'),
-                    'value' => (float)$value,
+                    'label' => (string)$year,
+                    'orders' => $totalCount,
+                    'revenue' => (float)$value,
+                    'avgOrder' => (float)$avgOrder,
                 ];
             }
-        } else { // month
+        } else { // month - show past 12 months
             $salesData = [];
-            $weeksInMonth = ceil(now()->daysInMonth / 7);
-            
-            for ($week = 1; $week <= 4; $week++) {
-                $weekStart = now()->startOfMonth()->addWeeks($week - 1);
-                $weekEnd = $weekStart->copy()->addDays(6);
+            for ($i = 0; $i < 12; $i++) {
+                // Calculate month going backwards from current month
+                $monthDate = Carbon::now()->subMonths(11 - $i);
+                $monthStart = $monthDate->copy()->startOfMonth();
+                $monthEnd = $monthDate->copy()->endOfMonth();
                 
-                $value = Order::whereBetween('created_at', [$weekStart, $weekEnd])
+                // Count only Delivered, Shipping, Packaging orders + all POS transactions
+                $orderCount = Order::whereBetween('created_at', [$monthStart, $monthEnd])
+                    ->whereIn('status', ['Delivered', 'Shipping', 'Packaging'])
+                    ->count();
+                $posCount = PosTransaction::whereBetween('created_at', [$monthStart, $monthEnd])->count();
+                $totalCount = $orderCount + $posCount;
+                
+                // Sum revenue only from Packaging, Shipping, Delivered status
+                $orderValue = Order::whereBetween('created_at', [$monthStart, $monthEnd])
                     ->whereIn('status', ['Delivered', 'Shipping', 'Packaging'])
                     ->sum('total_price') ?? 0;
+                $posValue = PosTransaction::whereBetween('created_at', [$monthStart, $monthEnd])
+                    ->sum('total_price') ?? 0;
+                $totalRevenue = (float)($orderValue + $posValue);
+                $avgOrder = $totalCount > 0 ? $totalRevenue / $totalCount : 0;
                 
                 $salesData[] = [
-                    'label' => 'Week ' . $week,
-                    'value' => (float)$value,
+                    'label' => $monthDate->format('M Y'),
+                    'orders' => $totalCount,
+                    'revenue' => $totalRevenue,
+                    'avgOrder' => $avgOrder,
                 ];
             }
         }
@@ -138,14 +245,14 @@ class DashboardController extends Controller
                     'product_id' => $product->product_id,
                     'name' => $product->name,
                     'rating' => (float)($product->average_rating ?? 4.5),
-                    'stock' => $product->stock_30ml ?? 0,
+                    'stock' => ($product->stock_30ml ?? 0) + ($product->stock_50ml ?? 0),
                     'image' => $product->images->first()?->image_url,
                 ];
             })
             ->values();
 
-        // Recent orders
-        $recentOrders = Order::with('user', 'details.product.images', 'payment')
+        // Recent orders and POS transactions combined
+        $orders = Order::with('user', 'details.product.images', 'payment')
             ->orderBy('created_at', 'desc')
             ->limit(10)
             ->get()
@@ -154,16 +261,54 @@ class DashboardController extends Controller
                 if (is_string($createdDate)) {
                     $createdDate = \Carbon\Carbon::parse($createdDate);
                 }
+                // Format: #ORD-DD-MM-YYYY-XXX (3 digit order_id)
+                $formattedDate = $createdDate->format('d-m-Y');
+                $orderId = str_pad($order->order_id, 3, '0', STR_PAD_LEFT);
+                $totalQuantity = $order->details->sum('quantity') ?? 0;
+                
                 return [
                     'order_id' => $order->order_id,
-                    'order_no' => '#ORD-' . str_pad($order->order_id, 4, '0', STR_PAD_LEFT),
+                    'order_no' => "#ORD-{$formattedDate}-{$orderId}",
                     'customer_name' => $order->user?->name ?? 'Unknown',
                     'total' => $order->total_price ?? 0,
                     'date' => $createdDate->format('Y-m-d'),
                     'status' => $order->status ?? 'Pending',
-                    'items_count' => $order->details->count(),
+                    'items_count' => $totalQuantity,
                 ];
             });
+
+        $posTransactions = PosTransaction::orderBy('created_at', 'desc')
+            ->limit(10)
+            ->get()
+            ->map(function($transaction) {
+                $createdDate = $transaction->created_at;
+                if (is_string($createdDate)) {
+                    $createdDate = \Carbon\Carbon::parse($createdDate);
+                }
+                if (!$createdDate) {
+                    $createdDate = \Carbon\Carbon::now();
+                }
+                // Format: #POS-DD-MM-YYYY-XXX (3 digit transaction_id)
+                $formattedDate = $createdDate->format('d-m-Y');
+                $transactionId = str_pad($transaction->transaction_id, 3, '0', STR_PAD_LEFT);
+                $totalQuantity = $transaction->items->sum('quantity') ?? 0;
+                
+                return [
+                    'order_id' => $transaction->transaction_id,
+                    'order_no' => "#POS-{$formattedDate}-{$transactionId}",
+                    'customer_name' => $transaction->customer_name,
+                    'total' => $transaction->total_price ?? 0,
+                    'date' => $createdDate->format('Y-m-d'),
+                    'status' => 'POS',
+                    'items_count' => $totalQuantity,
+                ];
+            });
+
+        // Combine and sort by date descending, limit to 10
+        $recentOrders = $orders->concat($posTransactions)
+            ->sortByDesc('date')
+            ->take(10)
+            ->values();
 
         return response()->json([
             'orderStats' => $orderStats,
@@ -174,6 +319,7 @@ class DashboardController extends Controller
             'salesData' => $salesData,
             'bestSellers' => $bestSellers,
             'recentOrders' => $recentOrders,
+            'mostSoldProduct' => $mostSoldProduct,
         ]);
     }
 
@@ -217,28 +363,53 @@ class DashboardController extends Controller
         return response()->json($order->load('user', 'details.product.images', 'payment'));
     }
 
-    public function salesReport(Request $request)
+    /**
+     * Get sales report data based on timeframe
+     * Uses SalesReportService for business logic
+     */
+    public function salesReport(Request $request, SalesReportService $salesService)
     {
-        $startDate = $request->input('start_date', now()->startOfMonth());
-        $endDate = $request->input('end_date', now()->endOfMonth());
-
-        $orders = Order::with('details.product', 'payment')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->whereHas('payment', function($q) {
-                $q->where('status', 'Success');
-            })
-            ->get();
-
-        $report = [
-            'period' => [
-                'start' => $startDate,
-                'end' => $endDate,
-            ],
-            'total_revenue' => $orders->sum('total_price'),
-            'total_orders' => $orders->count(),
-            'orders' => $orders,
-        ];
-
-        return response()->json($report);
+        $timeframe = strtolower($request->input('timeframe', 'monthly'));
+        $date = now(); // You can make this configurable if needed
+        
+        // Get total revenue and transactions (global, not filtered by timeframe)
+        $totalRevenue = $salesService->getTotalRevenue();
+        $totalTransactions = $salesService->getTotalTransactions();
+        
+        // Get sales data based on selected timeframe
+        $salesData = [];
+        
+        switch ($timeframe) {
+            case 'daily':
+                $salesData = $salesService->getDailySales($date);
+                break;
+            case 'weekly':
+                $salesData = $salesService->getWeeklySales($date);
+                break;
+            case 'monthly':
+                $salesData = $salesService->getMonthlySales($date);
+                break;
+            case 'yearly':
+                $salesData = $salesService->getYearlySales($date);
+                break;
+            default:
+                $salesData = $salesService->getMonthlySales($date);
+        }
+        
+        // Format the sales data for frontend
+        $formattedSalesData = array_map(function($item) {
+            return [
+                'date' => $item['date'],
+                'orders' => $item['orders'],
+                'revenue' => $item['revenue'],
+                'avgOrder' => $item['avg_revenue'],
+            ];
+        }, $salesData);
+        
+        return response()->json([
+            'totalRevenue' => $totalRevenue,
+            'totalTransactions' => $totalTransactions,
+            'salesData' => $formattedSalesData,
+        ]);
     }
 }

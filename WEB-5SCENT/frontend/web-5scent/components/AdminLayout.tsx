@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAdmin } from '@/contexts/AdminContext';
 import { useToast } from '@/contexts/ToastContext';
 import { FiCalendar } from 'react-icons/fi';
+import { TbFileText } from 'react-icons/tb';
 import {
   Bars3Icon,
   XMarkIcon,
@@ -37,7 +38,7 @@ export default function AdminLayout({ children, onRefresh, refreshing }: AdminLa
     { name: 'Products', href: '/admin/products', icon: ShoppingBagIcon },
     { name: 'Orders', href: '/admin/orders', icon: ShoppingCartIcon },
     { name: 'POS Tool', href: '/admin/pos', icon: LuCalculator },
-    { name: 'Sales Reports', href: '/admin/reports', icon: Cog6ToothIcon },
+    { name: 'Sales Reports', href: '/admin/reports', icon: TbFileText },
     { name: 'Reviews', href: '/admin/reviews', icon: StarIcon },
     { name: 'Settings', href: '/admin/settings', icon: Cog6ToothIcon },
   ];
@@ -58,9 +59,15 @@ export default function AdminLayout({ children, onRefresh, refreshing }: AdminLa
   const isOrders = pathname?.startsWith('/admin/orders');
   const isPOS = pathname?.startsWith('/admin/pos');
   const isReviews = pathname?.startsWith('/admin/reviews');
+  const isSettings = pathname?.startsWith('/admin/settings');
+  const isReports = pathname?.startsWith('/admin/reports');
 
-  const headerTitle = isProducts ? 'Product Management' : isOrders ? 'Order Management' : isPOS ? 'POS Tool' : isReviews ? 'Reviews Management' : 'Dashboard Overview';
-  const headerSubtitle = isProducts
+  const headerTitle = isSettings ? 'Admin Settings' : isReports ? 'Sales Reports' : isProducts ? 'Product Management' : isOrders ? 'Order Management' : isPOS ? 'POS Tool' : isReviews ? 'Reviews Management' : 'Dashboard Overview';
+  const headerSubtitle = isSettings
+    ? 'Manage your admin profile'
+    : isReports
+    ? 'Analyze sales data and trends'
+    : isProducts
     ? 'Manage your perfume inventory'
     : isOrders
     ? 'View and manage customer orders'
@@ -188,7 +195,7 @@ export default function AdminLayout({ children, onRefresh, refreshing }: AdminLa
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto px-8 py-6">
           {children}
         </main>
       </div>

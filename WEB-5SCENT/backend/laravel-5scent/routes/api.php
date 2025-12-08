@@ -11,6 +11,7 @@ use App\Http\Controllers\RatingController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SalesReportController;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
@@ -28,6 +29,8 @@ Route::prefix('admin')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/me', [AdminAuthController::class, 'me']);
         Route::post('/logout', [AdminAuthController::class, 'logout']);
+        Route::put('/profile', [AdminAuthController::class, 'updateProfile']);
+        Route::post('/change-password', [AdminAuthController::class, 'changePassword']);
     });
 });
 
@@ -83,6 +86,11 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
     Route::get('/dashboard/orders', [DashboardController::class, 'orders']);
     Route::put('/dashboard/orders/{id}/status', [DashboardController::class, 'updateOrderStatus']);
     Route::get('/dashboard/sales-report', [DashboardController::class, 'salesReport']);
+
+    // Sales Reports
+    Route::get('/sales-reports', [SalesReportController::class, 'index']);
+    Route::get('/sales-reports/export/pdf', [SalesReportController::class, 'exportPdf']);
+    Route::get('/sales-reports/export/excel', [SalesReportController::class, 'exportExcel']);
 
     // Products
     Route::apiResource('products', ProductController::class);

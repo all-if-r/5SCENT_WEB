@@ -32,6 +32,7 @@ interface Order {
   user_id: number;
   status: string;
   tracking_number: string | null;
+  subtotal: number;
   total_price: number;
   shipping_address: string;
   created_at: string;
@@ -608,7 +609,7 @@ export default function OrdersPage() {
                     {/* Top Right - Subtotal */}
                     <div className="text-right">
                       <div className="text-sm font-medium text-gray-600 mb-1">Subtotal</div>
-                      <div className="text-lg font-semibold text-gray-900">{formatCurrency(selectedOrder.total_price)}</div>
+                      <div className="text-lg font-semibold text-gray-900">{formatCurrency(selectedOrder.subtotal || selectedOrder.total_price / 1.05)}</div>
                     </div>
                     
                     {/* Bottom Left - Payment Method */}

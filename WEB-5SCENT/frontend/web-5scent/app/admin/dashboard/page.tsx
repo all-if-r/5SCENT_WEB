@@ -32,6 +32,7 @@ interface DashboardData {
   totalRevenue: number;
   averageOrderValue: number;
   totalProducts: number;
+  mostSoldProduct: string;
   revenueChange: number;
   salesData: { label: string; value: number }[];
   bestSellers: Array<{
@@ -179,8 +180,8 @@ export default function AdminDashboardPage() {
 
   return (
     <AdminLayout onRefresh={handleRefresh} refreshing={refreshing || loading}>
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto space-y-8">
+      <div className="min-h-screen flex flex-col">
+        <div className="flex-1 space-y-8">
           {/* Key Metrics - Top Row */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {/* Total Orders */}
@@ -257,9 +258,9 @@ export default function AdminDashboardPage() {
                 <PiMoneyWavy className="w-6 h-6 text-white" />
               </div>
               <p className="text-gray-300 text-sm mb-2">Total Revenue</p>
-              <p className="text-3xl font-bold mb-2">Rp {dashboardData.totalRevenue.toLocaleString('id-ID')}</p>
+              <p className="text-3xl font-bold mb-2">Rp {(dashboardData.totalRevenue || 0).toLocaleString('id-ID')}</p>
               <p className="text-sm text-gray-300">
-                ↑ {dashboardData.revenueChange.toFixed(1)}% from last month
+                ↑ {(dashboardData.revenueChange || 0).toFixed(1)}% from last month
               </p>
             </div>
 
@@ -271,7 +272,7 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
               <p className="text-gray-600 text-sm mb-2">Average Order Value</p>
-              <p className="text-2xl font-bold text-gray-900">Rp {dashboardData.averageOrderValue.toLocaleString('id-ID', { maximumFractionDigits: 0 })}</p>
+              <p className="text-2xl font-bold text-gray-900">Rp {(dashboardData.averageOrderValue || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 })}</p>
               <p className="text-xs text-gray-600 mt-2">Per transaction</p>
             </div>
 
@@ -326,13 +327,13 @@ export default function AdminDashboardPage() {
                         <div
                           className="h-full rounded-lg transition-all hover:opacity-80 flex items-center justify-end pr-3"
                           style={{
-                            width: `${(item.value / maxValue) * 100}%`,
+                            width: `${((item.value || 0) / maxValue) * 100}%`,
                             backgroundColor: COLORS[index % COLORS.length],
                           }}
-                          title={`${item.label}: Rp ${item.value.toLocaleString('id-ID')}`}
+                          title={`${item.label}: Rp ${(item.value || 0).toLocaleString('id-ID')}`}
                         >
                           <p className="text-xs font-semibold text-white text-right">
-                            Rp {item.value.toLocaleString('id-ID')}
+                            Rp {(item.value || 0).toLocaleString('id-ID')}
                           </p>
                         </div>
                       </div>
@@ -412,7 +413,7 @@ export default function AdminDashboardPage() {
                       <td className="px-4 py-4 text-sm font-medium text-gray-900">{order.order_no}</td>
                       <td className="px-4 py-4 text-sm text-gray-600">{order.customer_name}</td>
                       <td className="px-4 py-4 text-sm text-gray-600">{order.items_count} item(s)</td>
-                      <td className="px-4 py-4 text-sm font-medium text-gray-900">Rp {order.total.toLocaleString('id-ID', { maximumFractionDigits: 0 })}</td>
+                      <td className="px-4 py-4 text-sm font-medium text-gray-900">Rp {(order.total || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 })}</td>
                       <td className="px-4 py-4 text-sm text-gray-600">{order.date}</td>
                       <td className="px-4 py-4">
                         <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(order.status)}`}>

@@ -91,9 +91,12 @@ class OrderController extends Controller
         $tax = $subtotal * 0.05;
         $totalPrice = $subtotal + $tax;
 
+        // If payment method is Cash, automatically set status to Packaging
+        $orderStatus = $validated['payment_method'] === 'Cash' ? 'Packaging' : 'Pending';
+
         $order = Order::create([
             'user_id' => $request->user()->user_id,
-            'status' => 'Pending',
+            'status' => $orderStatus,
             'shipping_address' => $validated['shipping_address'],
             'subtotal' => $subtotal,
             'total_price' => $totalPrice,
