@@ -5,20 +5,17 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAdmin } from '@/contexts/AdminContext';
 import { useToast } from '@/contexts/ToastContext';
-import { FiCalendar } from 'react-icons/fi';
+import { FiCalendar, FiShoppingBag } from 'react-icons/fi';
 import { TbFileText } from 'react-icons/tb';
+import { RiDashboardLine } from 'react-icons/ri';
+import { LuPackage, LuCalculator, LuSettings } from 'react-icons/lu';
 import {
   Bars3Icon,
   XMarkIcon,
-  HomeIcon,
-  ShoppingBagIcon,
-  ShoppingCartIcon,
   StarIcon,
-  Cog6ToothIcon,
   ArrowTopRightOnSquareIcon,
   ArrowLeftOnRectangleIcon,
 } from '@heroicons/react/24/outline';
-import { LuCalculator } from 'react-icons/lu';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -34,13 +31,13 @@ export default function AdminLayout({ children, onRefresh, refreshing }: AdminLa
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const menuItems = [
-    { name: 'Dashboard', href: '/admin/dashboard', icon: HomeIcon },
-    { name: 'Products', href: '/admin/products', icon: ShoppingBagIcon },
-    { name: 'Orders', href: '/admin/orders', icon: ShoppingCartIcon },
+    { name: 'Dashboard', href: '/admin/dashboard', icon: RiDashboardLine },
+    { name: 'Products', href: '/admin/products', icon: LuPackage },
+    { name: 'Orders', href: '/admin/orders', icon: FiShoppingBag },
     { name: 'POS Tool', href: '/admin/pos', icon: LuCalculator },
     { name: 'Sales Reports', href: '/admin/reports', icon: TbFileText },
     { name: 'Reviews', href: '/admin/reviews', icon: StarIcon },
-    { name: 'Settings', href: '/admin/settings', icon: Cog6ToothIcon },
+    { name: 'Settings', href: '/admin/settings', icon: LuSettings },
   ];
 
   const handleLogout = async () => {
@@ -128,16 +125,6 @@ export default function AdminLayout({ children, onRefresh, refreshing }: AdminLa
 
         {/* Bottom Actions */}
         <div className="border-t border-gray-200 p-4 space-y-2">
-          <a
-            href="/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <ArrowTopRightOnSquareIcon className="w-5 h-5" />
-            <span className="font-medium">View Store</span>
-          </a>
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 transition-colors"

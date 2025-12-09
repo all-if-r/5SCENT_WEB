@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Mail } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
+import api from '@/lib/api';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -16,13 +17,45 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setLoading(true);
 
-    // TODO: Implement password reset API call
-    // For now, just show a message
-    setTimeout(() => {
+    try {
+      // Validate email format
+      if (!email || !email.includes('@')) {
+        showToast('Please enter a valid email address', 'error');
+        setLoading(false);
+        return;
+      }
+
+      // Call the forgot password API
+      const response = await api.post('/forgot-password', { email });
+
       showToast('Password reset link has been sent to your email', 'success');
+      setEmail('');
       setLoading(false);
-      // router.push('/login');
-    }, 1000);
+
+      // Redirect to login after 2 seconds
+      setTimeout(() => {
+        router.push('/login');
+      }, 2000);
+    } catch (error: any) {
+      console.error('Forgot password error:', error);
+      setLoading(false);
+
+      // Handle specific error responses
+      if (error.response?.status === 422) {
+        const errors = error.response?.data?.errors;
+        if (errors?.email) {
+          showToast(errors.email[0], 'error');
+        } else {
+          showToast('Validation failed', 'error');
+        }
+      } else if (error.response?.data?.message) {
+        showToast(error.response.data.message, 'error');
+      } else if (error.message) {
+        showToast(error.message, 'error');
+      } else {
+        showToast('Failed to send reset link. Please try again.', 'error');
+      }
+    }
   };
 
   return (

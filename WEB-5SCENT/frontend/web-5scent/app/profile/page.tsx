@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import api from '@/lib/api';
 import { User, Mail, Phone, MapPin, Lock, Eye, EyeOff, Upload } from 'lucide-react';
+import { LuTrash2 } from 'react-icons/lu';
 import ProfileCropModal from '@/components/ProfileCropModal';
 import ScrollAnimated from '@/components/ScrollAnimated';
 
@@ -447,28 +448,32 @@ export default function ProfilePage() {
               <h2 className="text-xl font-header font-bold text-gray-900 mb-1">{user.name}</h2>
               <p className="text-sm text-gray-600 mb-4 font-body">{user.email}</p>
 
-              {/* Change Photo Button */}
-              <label className="inline-flex items-center gap-2 px-5 py-2 bg-black text-white rounded-full font-semibold hover:bg-gray-800 transition-colors cursor-pointer font-body text-sm">
-                <Upload className="w-4 h-4" />
-                Change Photo
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-              </label>
+              {/* Photo Management Buttons Container */}
+              <div className="flex flex-col gap-3 w-full">
+                {/* Change Photo Button */}
+                <label className="inline-flex items-center justify-center gap-2 px-5 py-2 bg-white border border-gray-300 text-gray-700 rounded-full font-semibold hover:bg-gray-50 transition-colors cursor-pointer font-body text-sm">
+                  <Upload className="w-4 h-4" />
+                  Change Photo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                </label>
 
-              {/* Remove Photo Button - only show if profile picture exists */}
-              {preview && (
-                <button
-                  onClick={handleRemovePhoto}
-                  disabled={loading}
-                  className="inline-flex items-center gap-2 px-5 py-2 bg-red-600 text-white rounded-full font-semibold hover:bg-red-700 transition-colors font-body text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Remove Photo
-                </button>
-              )}
+                {/* Remove Photo Button - only show if profile picture exists */}
+                {preview && (
+                  <button
+                    onClick={handleRemovePhoto}
+                    disabled={loading}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-2 bg-black text-white rounded-full font-semibold hover:bg-gray-800 transition-colors font-body text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <LuTrash2 className="w-4 h-4" />
+                    Remove Photo
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 

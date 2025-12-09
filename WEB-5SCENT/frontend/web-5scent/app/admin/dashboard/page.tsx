@@ -11,30 +11,32 @@ import {
   CheckCircleIcon,
   XCircleIcon,
 } from '@heroicons/react/24/outline';
+import { LuClock, LuCalculator } from 'react-icons/lu';
 import { FaStar, FaRegStar, FaRegStarHalfStroke } from 'react-icons/fa6';
 import { PiMoneyWavy } from 'react-icons/pi';
 import { FiShoppingBag, FiPackage } from 'react-icons/fi';
 import { LuPackage2 } from 'react-icons/lu';
 import { formatCurrency, roundRating } from '@/lib/utils';
 
-interface OrderStats {
-  total: number;
-  packaging: number;
-  shipping: number;
-  delivered: number;
-  cancelled: number;
-  totalChange?: number;
-  deliveredChange?: number;
+interface Card {
+  label: string;
+  value: number;
+  icon: string;
 }
 
 interface DashboardData {
-  orderStats: OrderStats;
-  totalRevenue: number;
-  averageOrderValue: number;
-  totalProducts: number;
-  mostSoldProduct: string;
-  revenueChange: number;
-  salesData: { label: string; value: number }[];
+  cards: Card[];
+  revenue: {
+    total: number;
+    change: number;
+    averageOrderValue: number;
+  };
+  salesOverview: Array<{
+    label: string;
+    orders: number;
+    revenue: number;
+    avgOrder: number;
+  }>;
   bestSellers: Array<{
     product_id: number;
     name: string;
@@ -51,6 +53,7 @@ interface DashboardData {
     status: string;
     items_count: number;
   }>;
+  mostSoldProduct?: string;
 }
 
 const COLORS = ['#3B82F6', '#A855F7', '#EC4899', '#F97316', '#22C55E', '#06B6D4', '#000000'];
@@ -58,7 +61,7 @@ const COLORS = ['#3B82F6', '#A855F7', '#EC4899', '#F97316', '#22C55E', '#06B6D4'
 export default function AdminDashboardPage() {
   const router = useRouter();
   const { admin, loading: adminLoading } = useAdmin();
-  const [timeFrame, setTimeFrame] = useState<'week' | 'month' | 'year'>('month');
+  const [timeFrame, setTimeFrame] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -88,21 +91,13 @@ export default function AdminDashboardPage() {
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
       // Fallback to empty data on error
-      setDashboardData((previous) => previous || {
-        orderStats: {
-          total: 0,
-          packaging: 0,
-          shipping: 0,
-          delivered: 0,
-          cancelled: 0,
-        },
-        totalRevenue: 0,
-        averageOrderValue: 0,
-        totalProducts: 0,
-        revenueChange: 0,
-        salesData: [],
+      setDashboardData({
+        cards: [],
+        revenue: { total: 0, change: 0, averageOrderValue: 0 },
+        salesOverview: [],
         bestSellers: [],
         recentOrders: [],
+        mostSoldProduct: 'N/A',
       });
     } finally {
       if (isRefresh) {
@@ -149,12 +144,35 @@ export default function AdminDashboardPage() {
         return 'bg-blue-100 text-blue-800';
       case 'cancelled':
         return 'bg-red-100 text-red-800';
+      case 'pos':
+        return 'bg-yellow-100 text-yellow-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const maxValue = Math.max(...dashboardData.salesData.map(d => d.value));
+  const getIconComponent = (iconName: string) => {
+    switch (iconName) {
+      case 'FiShoppingBag':
+        return <FiShoppingBag className="w-6 h-6 text-gray-600" />;
+      case 'LuClock':
+        return <LuClock className="w-6 h-6 text-gray-600" />;
+      case 'LuPackage2':
+        return <LuPackage2 className="w-6 h-6 text-gray-600" />;
+      case 'TruckIcon':
+        return <TruckIcon className="w-6 h-6 text-gray-600" />;
+      case 'CheckCircleIcon':
+        return <CheckCircleIcon className="w-6 h-6 text-green-600" />;
+      case 'XCircleIcon':
+        return <XCircleIcon className="w-6 h-6 text-red-600" />;
+      case 'LuCalculator':
+        return <LuCalculator className="w-6 h-6 text-gray-600" />;
+      case 'FiPackage':
+        return <FiPackage className="w-6 h-6 text-gray-600" />;
+      default:
+        return null;
+    }
+  };
 
   const renderStars = (rating: number) => {
     const rounded = roundRating(rating);
@@ -178,89 +196,39 @@ export default function AdminDashboardPage() {
 
   const handleRefresh = () => fetchDashboardData({ isRefresh: true });
 
+  // Get max revenue for chart scaling
+  const maxRevenue = Math.max(...(dashboardData.salesOverview?.map(d => d.revenue || 0) || [0]), 1);
+
   return (
     <AdminLayout onRefresh={handleRefresh} refreshing={refreshing || loading}>
       <div className="min-h-screen flex flex-col">
         <div className="flex-1 space-y-8">
-          {/* Key Metrics - Top Row */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {/* Total Orders */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <FiShoppingBag className="w-6 h-6 text-gray-600" />
-                </div>
-                {dashboardData.orderStats.totalChange && (
-                  <div className="flex items-center gap-1 text-green-600">
-                    <span className="text-sm font-medium">+{dashboardData.orderStats.totalChange}%</span>
+          {/* Stats Grid - 2 rows of 4 cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {dashboardData.cards?.map((card, index) => (
+              <div key={index} className="bg-white rounded-lg border border-gray-200 p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                    {getIconComponent(card.icon)}
                   </div>
-                )}
-              </div>
-              <p className="text-gray-600 text-sm mb-2">Total Orders</p>
-              <p className="text-2xl font-bold text-gray-900">{dashboardData.orderStats.total}</p>
-            </div>
-
-            {/* Packaging */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <LuPackage2 className="w-6 h-6 text-gray-600" />
                 </div>
+                <p className="text-gray-600 text-sm mb-2">{card.label}</p>
+                <p className="text-2xl font-bold text-gray-900">{card.value ?? 0}</p>
               </div>
-              <p className="text-gray-600 text-sm mb-2">Packaging</p>
-              <p className="text-2xl font-bold text-gray-900">{dashboardData.orderStats.packaging}</p>
-            </div>
-
-            {/* Shipping */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <TruckIcon className="w-6 h-6 text-gray-600" />
-                </div>
-              </div>
-              <p className="text-gray-600 text-sm mb-2">Shipping</p>
-              <p className="text-2xl font-bold text-gray-900">{dashboardData.orderStats.shipping}</p>
-            </div>
-
-            {/* Delivered */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <CheckCircleIcon className="w-6 h-6 text-green-600" />
-                </div>
-                {dashboardData.orderStats.deliveredChange && (
-                  <div className="flex items-center gap-1 text-green-600">
-                    <span className="text-sm font-medium">+{dashboardData.orderStats.deliveredChange}%</span>
-                  </div>
-                )}
-              </div>
-              <p className="text-gray-600 text-sm mb-2">Delivered</p>
-              <p className="text-2xl font-bold text-gray-900">{dashboardData.orderStats.delivered}</p>
-            </div>
-
-            {/* Cancelled */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <XCircleIcon className="w-6 h-6 text-red-600" />
-                </div>
-              </div>
-              <p className="text-gray-600 text-sm mb-2">Cancelled</p>
-              <p className="text-2xl font-bold text-gray-900">{dashboardData.orderStats.cancelled}</p>
-            </div>
+            ))}
           </div>
 
           {/* Financial & Inventory Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Total Revenue */}
             <div className="bg-black text-white rounded-lg p-6">
               <div className="flex items-start justify-between mb-4">
                 <PiMoneyWavy className="w-6 h-6 text-white" />
               </div>
               <p className="text-gray-300 text-sm mb-2">Total Revenue</p>
-              <p className="text-3xl font-bold mb-2">Rp {(dashboardData.totalRevenue || 0).toLocaleString('id-ID')}</p>
+              <p className="text-3xl font-bold mb-2">Rp {(dashboardData.revenue?.total || 0).toLocaleString('id-ID')}</p>
               <p className="text-sm text-gray-300">
-                ↑ {(dashboardData.revenueChange || 0).toFixed(1)}% from last month
+                ↑ {(dashboardData.revenue?.change || 0).toFixed(1)}% from last month
               </p>
             </div>
 
@@ -272,52 +240,43 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
               <p className="text-gray-600 text-sm mb-2">Average Order Value</p>
-              <p className="text-2xl font-bold text-gray-900">Rp {(dashboardData.averageOrderValue || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 })}</p>
+              <p className="text-2xl font-bold text-gray-900">Rp {(dashboardData.revenue?.averageOrderValue || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 })}</p>
               <p className="text-xs text-gray-600 mt-2">Per transaction</p>
-            </div>
-
-            {/* Total Products */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <FiPackage className="w-6 h-6 text-gray-600" />
-                </div>
-              </div>
-              <p className="text-gray-600 text-sm mb-2">Total Products</p>
-              <p className="text-2xl font-bold text-gray-900">{dashboardData.totalProducts}</p>
-              <p className="text-xs text-gray-600 mt-2">Active listings</p>
             </div>
           </div>
 
           {/* Sales Overview & Best Sellers */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             {/* Sales Chart - 3 columns */}
             <div className="lg:col-span-3 bg-white rounded-lg border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">Sales Overview</h2>
                   <p className="text-sm text-gray-600">
-                    {timeFrame === 'week'
-                      ? 'Revenue trend over the last 7 days'
-                      : timeFrame === 'month'
-                      ? 'Monthly revenue for this month'
-                      : 'Monthly revenue for this year'}
+                    {timeFrame === 'daily'
+                      ? 'Revenue by day of the week'
+                      : timeFrame === 'weekly'
+                      ? 'Revenue by week of the month'
+                      : timeFrame === 'monthly'
+                      ? 'Revenue by month of the year'
+                      : 'Revenue by year (2025–2015)'}
                   </p>
                 </div>
                 <select
                   value={timeFrame}
-                  onChange={(e) => setTimeFrame(e.target.value as 'week' | 'month' | 'year')}
+                  onChange={(e) => setTimeFrame(e.target.value as 'daily' | 'weekly' | 'monthly' | 'yearly')}
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-black focus:border-transparent"
                 >
-                  <option value="week">This Week</option>
-                  <option value="month">This Month</option>
-                  <option value="year">This Year</option>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
                 </select>
               </div>
 
               {/* Chart */}
               <div className="space-y-3">
-                {dashboardData.salesData.map((item, index) => (
+                {dashboardData.salesOverview?.map((item, index) => (
                   <div key={index} className="flex items-center gap-3">
                     <div className="w-16 text-right">
                       <p className="text-xs font-medium text-gray-600">{item.label}</p>
@@ -327,13 +286,13 @@ export default function AdminDashboardPage() {
                         <div
                           className="h-full rounded-lg transition-all hover:opacity-80 flex items-center justify-end pr-3"
                           style={{
-                            width: `${((item.value || 0) / maxValue) * 100}%`,
+                            width: `${((item.revenue || 0) / maxRevenue) * 100}%`,
                             backgroundColor: COLORS[index % COLORS.length],
                           }}
-                          title={`${item.label}: Rp ${(item.value || 0).toLocaleString('id-ID')}`}
+                          title={`${item.label}: Rp ${(item.revenue || 0).toLocaleString('id-ID')}`}
                         >
                           <p className="text-xs font-semibold text-white text-right">
-                            Rp {(item.value || 0).toLocaleString('id-ID')}
+                            Rp {(item.revenue || 0).toLocaleString('id-ID')}
                           </p>
                         </div>
                       </div>
@@ -349,7 +308,7 @@ export default function AdminDashboardPage() {
               <p className="text-sm text-gray-600 mb-6">Top performing products</p>
 
               <div className="space-y-6">
-                {dashboardData.bestSellers.map((product, index) => (
+                {dashboardData.bestSellers?.map((product, index) => (
                   <div key={product.product_id} className="flex items-start gap-4 pb-6 border-b border-gray-200 last:border-0 last:pb-0">
                     {/* Ranking Circle */}
                     <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
@@ -373,7 +332,7 @@ export default function AdminDashboardPage() {
 
                     {/* Product Info */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900">{product.name}</p>
+                      <p className="text-sm font-semibold text-gray-900 truncate">{product.name}</p>
                       <p className="text-xs text-gray-600">{product.stock} in stock</p>
                       <div className="mt-2">{renderStars(product.rating)}</div>
                     </div>
@@ -408,7 +367,7 @@ export default function AdminDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {dashboardData.recentOrders.map((order) => (
+                  {dashboardData.recentOrders?.map((order) => (
                     <tr key={order.order_id} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="px-4 py-4 text-sm font-medium text-gray-900">{order.order_no}</td>
                       <td className="px-4 py-4 text-sm text-gray-600">{order.customer_name}</td>

@@ -87,25 +87,35 @@ api.interceptors.response.use(
     logApiError(endpoint, error);
     
     if (error.response?.status === 401) {
-      // Handle 401 for both admin and user contexts
-      const adminToken = localStorage.getItem('admin_token');
-      const userToken = localStorage.getItem('token');
+      // IMPORTANT: Don't auto-redirect on auth pages (/login, /register, etc.)
+      // This prevents infinite redirect loops when user is trying to log in
+      const authPages = ['/login', '/register', '/forgot-password', '/reset-password'];
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+      const isAuthPage = authPages.some(page => currentPath.startsWith(page));
       
-      if (adminToken) {
-        // Admin logout
-        localStorage.removeItem('admin_token');
-        localStorage.removeItem('admin');
-        if (typeof window !== 'undefined') {
-          window.location.href = '/admin/login';
-        }
-      } else if (userToken) {
-        // User logout
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        if (typeof window !== 'undefined') {
-          window.location.href = '/login';
+      // Only auto-redirect if NOT on an auth page
+      if (!isAuthPage) {
+        // Handle 401 for both admin and user contexts
+        const adminToken = localStorage.getItem('admin_token');
+        const userToken = localStorage.getItem('token');
+        
+        if (adminToken) {
+          // Admin logout
+          localStorage.removeItem('admin_token');
+          localStorage.removeItem('admin');
+          if (typeof window !== 'undefined') {
+            window.location.href = '/admin/login';
+          }
+        } else if (userToken) {
+          // User logout - but only if not on a page where we expect 401
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login';
+          }
         }
       }
+      // If on auth page, let the error propagate so the component can handle it
     }
     
     return Promise.reject(error);

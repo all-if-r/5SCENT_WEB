@@ -105,16 +105,6 @@ function normalizeImagesPayload(payload: any): string[] {
 
 export async function fetchCarouselImages(): Promise<string[]> {
   try {
-    const response = await api.get('/products/images/50ml');
-    const images = normalizeImagesPayload(response.data);
-    if (images.length > 0) {
-      return images;
-    }
-  } catch (error) {
-    console.error('Failed to fetch carousel images:', error);
-  }
-
-  try {
     const response = await api.get('/products');
     const products = normalizeProductsResponse(response.data);
     const images = collect50mlImages(products);
@@ -122,7 +112,7 @@ export async function fetchCarouselImages(): Promise<string[]> {
       return images;
     }
   } catch (error) {
-    console.error('Fallback product fetch failed:', error);
+    console.error('Failed to fetch carousel images:', error);
   }
 
   return [...fallbackCarouselImages];

@@ -67,12 +67,17 @@ class DashboardController extends Controller
         // Count ALL orders for total transactions, but only Packaging/Shipping/Delivered for revenue
         $totalOrders = Order::count();
         $totalPosTransactions = PosTransaction::count();
+        $totalProducts = Product::count();
+        
         $orderStats = [
             'total' => $totalOrders + $totalPosTransactions,
+            'pending' => Order::where('status', 'Pending')->count(),
             'packaging' => Order::where('status', 'Packaging')->count(),
             'shipping' => Order::where('status', 'Shipping')->count(),
             'delivered' => Order::where('status', 'Delivered')->count(),
             'cancelled' => Order::where('status', 'Cancelled')->count(),
+            'pos_orders' => $totalPosTransactions,
+            'total_products' => $totalProducts,
         ];
 
         // Total revenue - exclude Pending orders + include POS transactions
@@ -135,11 +140,37 @@ class DashboardController extends Controller
                 ];
             }
         } elseif ($timeFrame === 'weekly') {
+            // Show 5 weeks of current month
             $salesData = [];
-            for ($i = 0; $i < 4; $i++) {
-                // Week starting from Monday of week i
-                $weekStart = now()->startOfWeek()->addWeeks($i);
-                $weekEnd = $weekStart->copy()->endOfWeek();
+            $monthStart = now()->startOfMonth();
+            $monthEnd = now()->endOfMonth();
+            
+            // Week 1: Start of month to end of first week
+            $week1Start = $monthStart->copy();
+            $week1End = $monthStart->copy()->endOfWeek();
+            
+            // Weeks 2-5: Each starting at the beginning of a week
+            $weeks = [];
+            $weeks[] = ['start' => $week1Start, 'end' => $week1End];
+            
+            // Calculate remaining weeks
+            $currentWeekStart = $week1End->copy()->addDay()->startOfWeek();
+            $weekCount = 2;
+            
+            while ($currentWeekStart < $monthEnd && $weekCount <= 5) {
+                $currentWeekEnd = $currentWeekStart->copy()->endOfWeek();
+                // Don't extend beyond month end
+                if ($currentWeekEnd > $monthEnd) {
+                    $currentWeekEnd = $monthEnd;
+                }
+                $weeks[] = ['start' => $currentWeekStart, 'end' => $currentWeekEnd];
+                $currentWeekStart = $currentWeekEnd->copy()->addDay()->startOfWeek();
+                $weekCount++;
+            }
+            
+            foreach ($weeks as $index => $week) {
+                $weekStart = $week['start'];
+                $weekEnd = $week['end'];
                 
                 // Count only Delivered, Shipping, Packaging orders + all POS
                 $orderCount = Order::whereBetween('created_at', [$weekStart, $weekEnd])
@@ -158,7 +189,7 @@ class DashboardController extends Controller
                 $avgOrder = $totalCount > 0 ? $value / $totalCount : 0;
                 
                 $salesData[] = [
-                    'label' => 'Week ' . ($i + 1),
+                    'label' => 'Week ' . ($index + 1),
                     'orders' => $totalCount,
                     'revenue' => (float)$value,
                     'avgOrder' => (float)$avgOrder,
@@ -214,13 +245,13 @@ class DashboardController extends Controller
                     ->sum('total_price') ?? 0;
                 $posValue = PosTransaction::whereBetween('created_at', [$monthStart, $monthEnd])
                     ->sum('total_price') ?? 0;
-                $totalRevenue = (float)($orderValue + $posValue);
-                $avgOrder = $totalCount > 0 ? $totalRevenue / $totalCount : 0;
+                $monthRevenue = (float)($orderValue + $posValue);
+                $avgOrder = $totalCount > 0 ? $monthRevenue / $totalCount : 0;
                 
                 $salesData[] = [
                     'label' => $monthDate->format('M Y'),
                     'orders' => $totalCount,
-                    'revenue' => $totalRevenue,
+                    'revenue' => $monthRevenue,
                     'avgOrder' => $avgOrder,
                 ];
             }
@@ -310,13 +341,62 @@ class DashboardController extends Controller
             ->take(10)
             ->values();
 
+        // Build cards array for frontend 2x4 grid
+        $cards = [
+            [
+                'label' => 'Total Orders',
+                'value' => $orderStats['total'] ?? 0,
+                'icon' => 'FiShoppingBag',
+            ],
+            [
+                'label' => 'Pending',
+                'value' => $orderStats['pending'] ?? 0,
+                'icon' => 'LuClock',
+            ],
+            [
+                'label' => 'Packaging',
+                'value' => $orderStats['packaging'] ?? 0,
+                'icon' => 'LuPackage2',
+            ],
+            [
+                'label' => 'Shipping',
+                'value' => $orderStats['shipping'] ?? 0,
+                'icon' => 'TruckIcon',
+            ],
+            [
+                'label' => 'Delivered',
+                'value' => $orderStats['delivered'] ?? 0,
+                'icon' => 'CheckCircleIcon',
+            ],
+            [
+                'label' => 'Cancelled',
+                'value' => $orderStats['cancelled'] ?? 0,
+                'icon' => 'XCircleIcon',
+            ],
+            [
+                'label' => 'POS Orders',
+                'value' => $orderStats['pos_orders'] ?? 0,
+                'icon' => 'LuCalculator',
+            ],
+            [
+                'label' => 'Total Products',
+                'value' => $totalProducts,
+                'icon' => 'FiPackage',
+            ],
+        ];
+
+        // Build salesOverview array for chart
+        $salesOverview = $salesData;
+
+        // Return new structure for frontend
         return response()->json([
-            'orderStats' => $orderStats,
-            'totalRevenue' => $totalRevenue,
-            'averageOrderValue' => $averageOrderValue,
-            'totalProducts' => $totalProducts,
-            'revenueChange' => round($revenueChange, 1),
-            'salesData' => $salesData,
+            'cards' => $cards,
+            'revenue' => [
+                'total' => $totalRevenue,
+                'change' => round($revenueChange, 1),
+                'averageOrderValue' => $averageOrderValue,
+            ],
+            'salesOverview' => $salesOverview,
             'bestSellers' => $bestSellers,
             'recentOrders' => $recentOrders,
             'mostSoldProduct' => $mostSoldProduct,

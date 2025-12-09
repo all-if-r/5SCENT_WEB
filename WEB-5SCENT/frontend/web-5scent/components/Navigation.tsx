@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { ShoppingCartIcon, HeartIcon } from '@heroicons/react/24/outline';
+import { HeartIcon } from '@heroicons/react/24/outline';
+import { LuShoppingCart } from 'react-icons/lu';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import ProfilePopup from './ProfilePopup';
@@ -109,7 +110,7 @@ export default function Navigation() {
                     className="relative p-2 text-gray-700 hover:text-primary-600 transition-colors"
                     id="cart-icon"
                   >
-                    <ShoppingCartIcon className="w-6 h-6" />
+                    <LuShoppingCart className="w-6 h-6" />
                     {cartItemCount > 0 && (
                       <span className="absolute top-0 right-0 bg-black text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold">
                         {cartItemCount}

@@ -8,6 +8,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { Eye, EyeOff, Mail, Lock, User, Phone, ChevronLeft, ChevronRight } from 'lucide-react';
 import { validatePassword } from '@/lib/passwordValidation';
 import DualTextType from '@/components/DualTextType';
+import GoogleSignInButton from '@/components/GoogleSignInButton';
 import { fetchCarouselImages } from '@/lib/productData';
 
 export default function RegisterPage() {
@@ -31,8 +32,20 @@ export default function RegisterPage() {
   // Fetch products with 50ml images
   useEffect(() => {
     const loadCarouselImages = async () => {
-      const images = await fetchCarouselImages();
-      setCarouselImages(images);
+      try {
+        // Add a timeout to prevent hanging indefinitely
+        const timeoutPromise = new Promise((resolve) => 
+          setTimeout(() => resolve([]), 5000) // 5 second timeout, return empty array on timeout
+        );
+        
+        const imagesPromise = fetchCarouselImages();
+        const images = await Promise.race([imagesPromise, timeoutPromise]) as string[];
+        
+        setCarouselImages(images);
+      } catch (error) {
+        console.error('Error loading carousel images:', error);
+        setCarouselImages([]); // Set empty array on error to allow page to render
+      }
     };
 
     loadCarouselImages();
@@ -360,6 +373,16 @@ export default function RegisterPage() {
             >
               {loading ? 'Signing up...' : 'Sign Up'}
             </button>
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 my-6">
+              <div className="flex-1 h-px bg-gray-300"></div>
+              <span className="text-sm text-gray-500 font-body">or</span>
+              <div className="flex-1 h-px bg-gray-300"></div>
+            </div>
+
+            {/* Google Sign-Up Button */}
+            <GoogleSignInButton mode="signup" />
           </form>
 
           {/* Sign In Link - Centered */}
