@@ -27,6 +27,15 @@ interface OrderItem {
   };
 }
 
+interface Payment {
+  payment_id?: number;
+  order_id?: number;
+  method?: string;
+  amount?: number;
+  status?: string;
+  created_at?: string;
+}
+
 interface Order {
   order_id: number;
   user_id: number;
@@ -37,6 +46,7 @@ interface Order {
   shipping_address: string;
   created_at: string;
   payment_method?: string;
+  payment?: Payment;
   user?: {
     name: string;
     email: string;
@@ -106,6 +116,7 @@ export default function OrdersPage() {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [newStatus, setNewStatus] = useState('');
+  const [newPaymentStatus, setNewPaymentStatus] = useState('');
   const [trackingNumber, setTrackingNumber] = useState('');
   const [updating, setUpdating] = useState(false);
 
@@ -185,6 +196,7 @@ export default function OrdersPage() {
   const openStatusModal = (order: Order) => {
     setSelectedOrder(order);
     setNewStatus('');
+    setNewPaymentStatus(order.payment?.status || '');
     setTrackingNumber(order.tracking_number || '');
     setShowStatusModal(true);
   };
@@ -207,6 +219,7 @@ export default function OrdersPage() {
     setShowStatusModal(false);
     setSelectedOrder(null);
     setNewStatus('');
+    setNewPaymentStatus('');
     setTrackingNumber('');
   };
 
@@ -220,24 +233,48 @@ export default function OrdersPage() {
 
     try {
       setUpdating(true);
-      await api.put(`/admin/dashboard/orders/${selectedOrder.order_id}/status`, {
-        status: newStatus,
+      
+      // Prepare update payload
+      const updatePayload: any = {
         tracking_number: trackingNumber || null,
-      });
+      };
+      
+      // Only include status if it changed
+      if (newStatus && newStatus !== selectedOrder.status) {
+        updatePayload.status = newStatus;
+      }
+      
+      // Only include payment status if it changed and is for an online order
+      if (newPaymentStatus && newPaymentStatus !== selectedOrder.payment?.status && selectedOrder.payment_method) {
+        updatePayload.payment_status = newPaymentStatus;
+      }
+      
+      // If neither status nor payment_status changed, show warning
+      if (!updatePayload.status && !updatePayload.payment_status && trackingNumber === selectedOrder.tracking_number) {
+        showToast('No changes to save', 'info');
+        return;
+      }
+      
+      await api.put(`/admin/dashboard/orders/${selectedOrder.order_id}/status`, updatePayload);
 
       setOrders((prev) =>
         prev.map((order) =>
           order.order_id === selectedOrder.order_id
-            ? { ...order, status: newStatus, tracking_number: trackingNumber || null }
+            ? {
+                ...order,
+                ...(newStatus && newStatus !== selectedOrder.status && { status: newStatus }),
+                ...(trackingNumber && { tracking_number: trackingNumber }),
+                ...(newPaymentStatus && selectedOrder.payment && { payment: { ...selectedOrder.payment, status: newPaymentStatus } }),
+              }
             : order
         )
       );
 
-      showToast('Order status updated successfully', 'success');
+      showToast('Order updated successfully', 'success');
       closeStatusModal();
     } catch (error) {
-      console.error('Error updating order status:', error);
-      showToast('Failed to update order status', 'error');
+      console.error('Error updating order:', error);
+      showToast('Failed to update order', 'error');
     } finally {
       setUpdating(false);
     }
@@ -718,11 +755,11 @@ export default function OrdersPage() {
                 {/* Quick Actions */}
                 <div>
                   <h3 className="text-sm font-semibold text-gray-900 mb-4">Quick Actions</h3>
-                  <div className="flex gap-3 flex-wrap">
+                  <div className="grid grid-cols-3 gap-3">
                     <button
                       onClick={() => setNewStatus('Packaging')}
                       disabled={!getNextStatuses(selectedOrder.status).includes('Packaging')}
-                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       <FiPackage className="w-4 h-4" />
                       Set Packaging
@@ -730,7 +767,7 @@ export default function OrdersPage() {
                     <button
                       onClick={() => setNewStatus('Shipping')}
                       disabled={!getNextStatuses(selectedOrder.status).includes('Shipping')}
-                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       <FiTruck className="w-4 h-4" />
                       Set Shipping
@@ -738,13 +775,33 @@ export default function OrdersPage() {
                     <button
                       onClick={() => setNewStatus('Delivered')}
                       disabled={!getNextStatuses(selectedOrder.status).includes('Delivered')}
-                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       <FiCheck className="w-4 h-4" />
                       Set Delivered
                     </button>
                   </div>
                 </div>
+
+                {/* Payment Status Dropdown - Only for online orders */}
+                {selectedOrder.payment_method && (
+                  <div>
+                    <label className="text-sm font-semibold text-gray-900 mb-4 block">Change Payment Status</label>
+                    <div className="relative">
+                      <select
+                        value={newPaymentStatus || selectedOrder.payment?.status || ''}
+                        onChange={(e) => setNewPaymentStatus(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg appearance-none focus:ring-2 focus:ring-black focus:border-transparent bg-white text-sm font-medium hover:bg-gray-50 transition-colors"
+                      >
+                        <option value="Pending">Pending</option>
+                        <option value="Success">Success</option>
+                        <option value="Failed">Failed</option>
+                        <option value="Refunded">Refunded</option>
+                      </select>
+                      <ChevronDownIcon className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    </div>
+                  </div>
+                )}
 
                 {/* Order Items */}
                 <div className="bg-gray-50 rounded-xl p-6">
@@ -799,13 +856,16 @@ export default function OrdersPage() {
                 >
                   Close
                 </button>
-                <button
-                  onClick={handleStatusUpdate}
-                  disabled={updating || newStatus === selectedOrder.status}
-                  className="flex-1 px-4 py-3 bg-black text-white rounded-lg font-medium hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {updating ? 'Saving...' : 'Save Changes'}
-                </button>
+                {/* Save Changes button - show if status or payment status changed */}
+                {(newStatus !== selectedOrder.status || newPaymentStatus) && (
+                  <button
+                    onClick={handleStatusUpdate}
+                    disabled={updating}
+                    className="flex-1 px-4 py-3 bg-black text-white rounded-lg font-medium hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {updating ? 'Saving...' : 'Save Changes'}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -905,15 +965,9 @@ export default function OrdersPage() {
               <div className="border-t border-gray-200 px-6 py-4 flex gap-3 bg-white rounded-b-2xl">
                 <button
                   onClick={() => setShowPosModal(false)}
-                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-900 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                  className="w-full px-4 py-3 bg-black text-white rounded-lg font-medium hover:bg-gray-900 transition-colors"
                 >
                   Close
-                </button>
-                <button
-                  onClick={() => setShowPosModal(false)}
-                  className="flex-1 px-4 py-3 bg-black text-white rounded-lg font-medium hover:bg-gray-900 transition-colors"
-                >
-                  Save Changes
                 </button>
               </div>
             </div>

@@ -126,12 +126,18 @@ class OrderController extends Controller
             $cartItem->delete();
         }
 
-        // Create payment record
+        // Create payment record with matching created_at timestamp
+        $paymentStatus = 'Pending'; // Default to pending
+        
+        // For QRIS or Virtual Account, status is Pending (waiting for transfer)
+        // For Cash, status is also Pending (waiting for delivery)
+        
         Payment::create([
             'order_id' => $order->order_id,
             'method' => $validated['payment_method'],
             'amount' => $totalPrice,
-            'status' => 'Pending',
+            'status' => $paymentStatus,
+            'created_at' => $order->created_at,
         ]);
 
         return response()->json($order->load('details.product.images', 'payment'), 201);

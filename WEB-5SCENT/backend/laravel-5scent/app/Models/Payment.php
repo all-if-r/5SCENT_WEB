@@ -11,7 +11,7 @@ class Payment extends Model
 
     protected $table = 'payment';
     protected $primaryKey = 'payment_id';
-    public $timestamps = false;
+    public $timestamps = true;
 
     protected $fillable = [
         'order_id',
@@ -19,13 +19,18 @@ class Payment extends Model
         'amount',
         'status',
         'transaction_time',
+        'created_at',
+        'updated_at',
     ];
 
     protected function casts(): array
     {
         return [
+            'method' => 'string',
             'amount' => 'float',
             'transaction_time' => 'datetime',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
         ];
     }
 

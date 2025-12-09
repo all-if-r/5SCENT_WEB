@@ -405,7 +405,7 @@ class DashboardController extends Controller
 
     public function orders(Request $request)
     {
-        $query = Order::with('user', 'details.product.images')->select('*');
+        $query = Order::with('user', 'details.product.images', 'payment')->select('*');
 
         if ($request->has('status')) {
             $query->where('status', $request->status);
@@ -430,17 +430,39 @@ class DashboardController extends Controller
     public function updateOrderStatus(Request $request, $id)
     {
         $validated = $request->validate([
-            'status' => 'required|in:Pending,Packaging,Shipping,Delivered,Cancel,Cancelled',
+            'status' => 'nullable|in:Pending,Packaging,Shipping,Delivered,Cancel,Cancelled',
             'tracking_number' => 'nullable|string|max:100',
+            'payment_status' => 'nullable|in:Pending,Success,Failed,Refunded',
         ]);
 
-        $order = Order::findOrFail($id);
-        $order->update([
-            'status' => $validated['status'],
-            'tracking_number' => $validated['tracking_number'] ?? $order->tracking_number,
-        ]);
+        $order = Order::with('payment')->findOrFail($id);
+        
+        // Prepare update array for order
+        $orderUpdateData = [];
+        
+        // Update order status if provided
+        if (!empty($validated['status'])) {
+            $orderUpdateData['status'] = $validated['status'];
+        }
+        
+        // Update tracking number if provided
+        if (!empty($validated['tracking_number'])) {
+            $orderUpdateData['tracking_number'] = $validated['tracking_number'];
+        }
+        
+        // Apply order updates if there are any
+        if (!empty($orderUpdateData)) {
+            $order->update($orderUpdateData);
+        }
+        
+        // Update payment status if provided and order has a payment record
+        if (!empty($validated['payment_status']) && $order->payment) {
+            $order->payment->update([
+                'status' => $validated['payment_status'],
+            ]);
+        }
 
-        return response()->json($order->load('user', 'details.product.images', 'payment'));
+        return response()->json($order->fresh()->load('user', 'details.product.images', 'payment'));
     }
 
     /**
