@@ -11,8 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Drop the existing table
+        Schema::dropIfExists('password_reset_tokens');
+        
+        // Create the new table with proper structure to allow multiple tokens per email
         Schema::create('password_reset_tokens', function (Blueprint $table) {
-            $table->id('password_reset_tokens_id');
+            $table->id();
             $table->string('email');
             $table->string('token')->unique();
             $table->timestamp('created_at')->nullable();

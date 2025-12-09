@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/contexts/AuthContext';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 
 export default function LoginPage() {
   const router = useRouter();
   const { showToast } = useToast();
+  const { updateUser } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -50,11 +52,19 @@ export default function LoginPage() {
       const { token, user } = response.data;
 
       // Store authentication data
-      localStorage.setItem('authToken', token);
+      localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
 
+      // Update AuthContext immediately so navbar reflects changes without page refresh
+      updateUser(user);
+
       showToast('Login successful', 'success');
-      router.push('/');
+      
+      // Refresh the page to ensure all data is synced
+      setTimeout(() => {
+        router.refresh();
+        router.push('/');
+      }, 500);
     } catch (error: any) {
       const message = error.response?.data?.message || 'Login failed';
       showToast(message, 'error');

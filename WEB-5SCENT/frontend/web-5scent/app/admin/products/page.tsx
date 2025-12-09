@@ -90,8 +90,15 @@ export default function ProductsPage() {
 
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<(string | null)[]>([null, null, null, null]);
-  const [existingImages, setExistingImages] = useState<ProductImage[]>([]);
-  const [imagesToDelete, setImagesToDelete] = useState<number[]>([]);
+  // Map of slot -> image (slot 1-4)
+  const [existingImagesBySlot, setExistingImagesBySlot] = useState<{ [key: number]: ProductImage | null }>({
+    1: null,
+    2: null,
+    3: null,
+    4: null,
+  });
+  // Set of image IDs marked for deletion
+  const [imagesToDelete, setImagesToDelete] = useState<Set<number>>(new Set());
 
   const categories = ['All Categories', 'Day', 'Night'];
 
@@ -106,7 +113,7 @@ export default function ProductsPage() {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/products');
+      const response = await api.get('/admin/products');
       const data: ProductsData = response.data;
       setProducts(data.products || []);
     } catch (error) {
@@ -150,15 +157,15 @@ export default function ProductsPage() {
     });
     setUploadedImages([]);
     setImagePreviews([null, null, null, null]);
-    setExistingImages([]);
-    setImagesToDelete([]);
+    setExistingImagesBySlot({ 1: null, 2: null, 3: null, 4: null });
+    setImagesToDelete(new Set());
     setModalError(null);
     setShowAddModal(true);
   };
 
   const openEditModal = async (product: Product) => {
     try {
-      const response = await api.get(`/products/${product.product_id}`);
+      const response = await api.get(`/admin/products/${product.product_id}`);
       const productData = response.data;
 
       setEditingProduct(productData);
@@ -175,43 +182,38 @@ export default function ProductsPage() {
         stock_50ml: productData.stock_50ml?.toString() || '',
       });
 
-      setExistingImages(productData.images || []);
+      // Build slot-based image map with proper slot detection
+      const slotImages: { [key: number]: ProductImage | null } = { 1: null, 2: null, 3: null, 4: null };
       const previews: (string | null)[] = [null, null, null, null];
-      
-      // Sort images to properly assign slots
-      const images = [...(productData.images || [])];
-      
-      // Separate main and additional images
-      const mainImages = images.filter((img: ProductImage) => !img.is_additional);
-      const additionalImages = images.filter((img: ProductImage) => img.is_additional);
-      
-      // Sort additional images by created_at to maintain order
-      additionalImages.sort((a: ProductImage, b: ProductImage) => {
-        const dateA = new Date(a.created_at || 0).getTime();
-        const dateB = new Date(b.created_at || 0).getTime();
-        return dateA - dateB;
-      });
-      
-      // Assign slots
-      mainImages.forEach((img: ProductImage) => {
-        if (img.is_50ml) {
-          previews[0] = img.image_url; // Slot 1: 50ml
+
+      const images = productData.images || [];
+
+      images.forEach((img: ProductImage) => {
+        let slot: number | null = null;
+
+        if (!img.is_additional) {
+          // Main images: use is_50ml flag
+          slot = img.is_50ml ? 1 : 2;
         } else {
-          previews[1] = img.image_url; // Slot 2: 30ml
+          // Additional images: extract slot from filename suffix (-1 or -2)
+          const filename = img.image_url.split('/').pop() || '';
+          if (filename.includes('-1.')) {
+            slot = 3; // Has -1 before extension -> slot 3
+          } else if (filename.includes('-2.')) {
+            slot = 4; // Has -2 before extension -> slot 4
+          }
+        }
+
+        if (slot) {
+          slotImages[slot] = img;
+          previews[slot - 1] = img.image_url;
         }
       });
-      
-      additionalImages.forEach((img: ProductImage, idx: number) => {
-        if (idx === 0) {
-          previews[2] = img.image_url; // Slot 3: Additional 1
-        } else if (idx === 1) {
-          previews[3] = img.image_url; // Slot 4: Additional 2
-        }
-      });
-      
+
+      setExistingImagesBySlot(slotImages);
       setImagePreviews(previews);
       setUploadedImages([]);
-      setImagesToDelete([]);
+      setImagesToDelete(new Set());
       setModalError(null);
       setShowEditModal(true);
     } catch (error) {
@@ -224,18 +226,35 @@ export default function ProductsPage() {
     setShowAddModal(false);
     setShowEditModal(false);
     setEditingProduct(null);
-    setExistingImages([]);
-    setImagesToDelete([]);
+    setExistingImagesBySlot({ 1: null, 2: null, 3: null, 4: null });
+    setImagesToDelete(new Set());
     setModalError(null);
   };
 
-  const handleDeleteExistingImage = (imageId: number, index: number) => {
-    setImagesToDelete([...imagesToDelete, imageId]);
+  // Get the image for a specific slot, considering both existing and newly uploaded
+  const getImageForSlot = (slot: number) => {
+    // If a new image was uploaded for this slot, use preview
+    if (uploadedImages[slot - 1]) {
+      return imagePreviews[slot - 1];
+    }
+    // Otherwise use existing image if not marked for deletion
+    const existingImage = existingImagesBySlot[slot];
+    if (existingImage && !imagesToDelete.has(existingImage.image_id)) {
+      return imagePreviews[slot - 1];
+    }
+    return null;
+  };
+
+  const handleDeleteExistingImage = (imageId: number, slot: number) => {
+    // Mark image for deletion
+    const newImagesToDelete = new Set(imagesToDelete);
+    newImagesToDelete.add(imageId);
+    setImagesToDelete(newImagesToDelete);
+
+    // Clear preview
     const previews = [...imagePreviews];
-    previews[index] = null;
+    previews[slot - 1] = null;
     setImagePreviews(previews);
-    
-    setExistingImages(existingImages.filter(img => img.image_id !== imageId));
   };
 
   const handleInputChange = (
@@ -251,9 +270,18 @@ export default function ProductsPage() {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
     const file = e.target.files?.[0];
     if (file) {
+      const slot = index + 1; // Convert to 1-based slot
       const newImages = [...uploadedImages];
       newImages[index] = file;
       setUploadedImages(newImages);
+
+      // If we're replacing a deleted image, remove it from the deletion set
+      const existingImage = existingImagesBySlot[slot];
+      if (existingImage && imagesToDelete.has(existingImage.image_id)) {
+        const newImagesToDelete = new Set(imagesToDelete);
+        newImagesToDelete.delete(existingImage.image_id);
+        setImagesToDelete(newImagesToDelete);
+      }
 
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -311,8 +339,8 @@ export default function ProductsPage() {
       console.log('Product updated:', updateResponse.data);
 
       // Then, handle image deletions
-      if (imagesToDelete.length > 0) {
-        console.log('Deleting images:', imagesToDelete);
+      if (imagesToDelete.size > 0) {
+        console.log('Deleting images:', Array.from(imagesToDelete));
         for (const imageId of imagesToDelete) {
           try {
             await api.delete(`/admin/products/${editingProduct.product_id}/images/${imageId}`);
@@ -379,16 +407,20 @@ export default function ProductsPage() {
       formDataPayload.append('stock_30ml', formData.stock_30ml);
       formDataPayload.append('stock_50ml', formData.stock_50ml || formData.stock_30ml);
 
-      // Add images
+      // Add images with explicit slot keys (same format as update)
       uploadedImages.forEach((image, index) => {
         if (image) {
-          formDataPayload.append(`images[${index}]`, image);
+          const slotKey = `image_slot_${index + 1}`;
+          formDataPayload.append(slotKey, image);
+          console.log(`Adding image for slot ${index + 1}:`, image.name);
         }
       });
 
       console.log('Creating product with images');
 
-      const createResponse = await api.post('/admin/products', formDataPayload);
+      const createResponse = await api.post('/admin/products', formDataPayload, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
       const newProductId = createResponse.data.product_id || createResponse.data.id;
 
       console.log('Product created with ID:', newProductId);
@@ -431,7 +463,7 @@ export default function ProductsPage() {
   const handleDeleteProduct = async (productId: number) => {
     try {
       const productName = products.find(p => p.product_id === productId)?.name || 'Product';
-      await api.delete(`/products/${productId}`);
+      await api.delete(`/admin/products/${productId}`);
       setProducts(products.filter((p) => p.product_id !== productId));
       setDeleteConfirm(null);
       showToast(`"${productName}" deleted successfully!`, 'success');
@@ -817,17 +849,19 @@ export default function ProductsPage() {
 
                 <div className="grid grid-cols-4 gap-3">
                   {[0, 1, 2, 3].map((index) => {
-                    const existingImage = existingImages[index];
-                    const isDeleted = imagesToDelete.includes(existingImage?.image_id);
+                    const slot = index + 1; // Convert 0-based index to 1-based slot
+                    const imageUrl = getImageForSlot(slot);
+                    const hasExistingImage = existingImagesBySlot[slot] !== null;
+                    const existingImage = existingImagesBySlot[slot];
                     
                     return (
-                      <div key={index} className="relative">
+                      <div key={slot} className="relative">
                         <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors group">
-                          {imagePreviews[index] && !isDeleted ? (
+                          {imageUrl ? (
                             <div className="relative w-full h-full">
                               <img
-                                src={imagePreviews[index] as string}
-                                alt={`Product ${index + 1}`}
+                                src={imageUrl}
+                                alt={`Product slot ${slot}`}
                                 className="w-full h-full object-cover rounded-lg"
                               />
                               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-lg transition-colors flex items-start justify-end p-2">
@@ -836,9 +870,11 @@ export default function ProductsPage() {
                                   onClick={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    if (existingImage?.image_id) {
-                                      handleDeleteExistingImage(existingImage.image_id, index);
+                                    if (hasExistingImage && existingImage?.image_id) {
+                                      // Deleting an existing image
+                                      handleDeleteExistingImage(existingImage.image_id, slot);
                                     } else {
+                                      // Removing a newly uploaded image
                                       const previews = [...imagePreviews];
                                       previews[index] = null;
                                       setImagePreviews(previews);
@@ -882,7 +918,7 @@ export default function ProductsPage() {
                           />
                         </label>
                         <p className="text-xs text-gray-500 text-center mt-1">
-                          {index === 0 ? '50ml' : index === 1 ? '30ml' : 'Additional'}
+                          {slot === 1 ? '50ml' : slot === 2 ? '30ml' : 'Additional'}
                         </p>
                       </div>
                     );

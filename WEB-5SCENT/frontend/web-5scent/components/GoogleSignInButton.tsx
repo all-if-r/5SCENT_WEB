@@ -50,8 +50,9 @@ export default function GoogleSignInButton({
         onSuccess(token, user);
       } else {
         showToast(`Welcome, ${user.name}!`, 'success');
-        // Redirect to home page after short delay
+        // Redirect to home page after short delay with refresh
         setTimeout(() => {
+          router.refresh();
           router.push('/');
         }, 500);
       }
@@ -179,7 +180,7 @@ export default function GoogleSignInButton({
           }
         }}
         disabled={isLoading || !isClickable}
-        className="w-full py-3 px-6 border-2 border-gray-300 rounded-lg font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-body text-base flex items-center justify-center gap-3"
+        className="w-full py-3 px-6 border-2 border-gray-300 rounded-full font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-body text-base flex items-center justify-center gap-3"
       >
         <FcGoogle className="w-5 h-5" />
         <span>{getButtonText()}</span>

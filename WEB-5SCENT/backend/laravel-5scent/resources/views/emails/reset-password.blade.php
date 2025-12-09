@@ -28,7 +28,7 @@
             <p>Or copy and paste this link in your browser:</p>
             <p>{{ $resetUrl }}</p>
             
-            <p>This password reset link will expire in 24 hours.</p>
+            <p>This password reset link will expire in 1 minute.</p>
             
             <p>If you did not request a password reset, you can safely ignore this email.</p>
             

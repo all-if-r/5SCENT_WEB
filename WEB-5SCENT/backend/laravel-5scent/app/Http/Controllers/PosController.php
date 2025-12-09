@@ -77,7 +77,7 @@ class PosController extends Controller
         $validated = $request->validate([
             'customer_name' => 'required|string|max:100',
             'phone' => 'required|string|regex:/^\+62[0-9]{8,12}$/',
-            'payment_method' => 'required|in:Cash,QRIS,Virtual Account',
+            'payment_method' => 'required|in:Cash,QRIS,Virtual_Account',
             'cash_received' => 'nullable|numeric|min:0',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:product,product_id',

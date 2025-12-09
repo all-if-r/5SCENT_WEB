@@ -57,6 +57,12 @@ class GoogleAuthController extends Controller
                 'password' => Hash::make(Str::random(32)), // Random password since using OAuth
                 'profile_pic' => $picture,
             ]);
+        } else {
+            // Update existing user's profile picture if they're logging in with Google
+            // This ensures the profile picture stays up to date
+            if ($picture && !$user->profile_pic) {
+                $user->update(['profile_pic' => $picture]);
+            }
         }
 
         // Generate API token for the user

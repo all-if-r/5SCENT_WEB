@@ -61,9 +61,10 @@ class ProductController extends Controller
     }
 
     /**
-     * Find or create product image record for a specific slot
+     * Find product image record for a specific slot by checking the filename suffix
+     * For additional images, the filename ends with -1 or -2 before the extension
      */
-    private function findOrCreateSlotImage($productId, $slot)
+    private function findSlotImage($productId, $slot)
     {
         $is50ml = ($slot === 1) ? 1 : 0;
         $isAdditional = ($slot >= 3) ? 1 : 0;
@@ -72,18 +73,41 @@ class ProductController extends Controller
             ->where('is_50ml', $is50ml)
             ->where('is_additional', $isAdditional);
 
-        // For additional images, we need to order by created_at to distinguish slot 3 vs 4
-        if ($isAdditional) {
-            if ($slot === 4) {
-                $image = $query->orderBy('created_at', 'asc')->skip(1)->first();
-            } else {
-                $image = $query->orderBy('created_at', 'asc')->first();
-            }
-        } else {
-            $image = $query->first();
-        }
+        $images = $query->get();
 
-        return $image;
+        \Log::info("findSlotImage for slot {$slot}", [
+            'product_id' => $productId,
+            'is_50ml' => $is50ml,
+            'is_additional' => $isAdditional,
+            'total_images_found' => $images->count(),
+        ]);
+
+        // For additional images, check the filename suffix to determine which slot
+        if ($isAdditional) {
+            foreach ($images as $image) {
+                // Extract the number before the file extension
+                // e.g., "additional-demeter-1.jpg" -> 1
+                if (preg_match('/-(\d+)\.\w+$/', $image->image_url, $matches)) {
+                    $fileSuffix = (int)$matches[1];
+                    $imageSlot = $fileSuffix === 1 ? 3 : 4; // 1 -> slot 3, 2 -> slot 4
+                    
+                    \Log::info("Checking additional image", [
+                        'image_url' => $image->image_url,
+                        'file_suffix' => $fileSuffix,
+                        'matched_slot' => $imageSlot,
+                        'target_slot' => $slot,
+                    ]);
+                    
+                    if ($imageSlot === $slot) {
+                        return $image;
+                    }
+                }
+            }
+            return null;
+        } else {
+            // For main images (50ml/30ml), just return the first one
+            return $images->first();
+        }
     }
 
     public function index(Request $request)
@@ -192,8 +216,12 @@ class ProductController extends Controller
             'price_50ml' => 'required|numeric|min:0',
             'stock_30ml' => 'required|integer|min:0',
             'stock_50ml' => 'nullable|integer|min:0',
+            'image_slot_1' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
+            'image_slot_2' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
+            'image_slot_3' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
+            'image_slot_4' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
             'images' => 'nullable|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:10240',
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif,webp|max:10240',
         ]);
 
         // Set stock_50ml if not provided
@@ -203,32 +231,48 @@ class ProductController extends Controller
 
         $product = Product::create($validated);
 
-        if ($request->hasFile('images')) {
-            $frontendProductsPath = base_path('../../frontend/web-5scent/public/products');
-            if (!is_dir($frontendProductsPath)) {
-                mkdir($frontendProductsPath, 0755, true);
+        $frontendProductsPath = base_path('../../frontend/web-5scent/public/products');
+        if (!is_dir($frontendProductsPath)) {
+            mkdir($frontendProductsPath, 0755, true);
+        }
+
+        // Collect uploaded files keyed by slot
+        $slotFiles = [];
+        for ($slot = 1; $slot <= 4; $slot++) {
+            $slotKey = "image_slot_{$slot}";
+            if ($request->hasFile($slotKey)) {
+                $slotFiles[$slot] = $request->file($slotKey);
             }
-            
-            foreach ($request->file('images') as $index => $image) {
-                if ($image) {
-                    // Slot numbering: index 0 = slot 1 (50ml), index 1 = slot 2 (30ml), index 2 = slot 3, index 3 = slot 4
-                    $slot = $index + 1;
-                    $extension = strtolower($image->getClientOriginalExtension() ?: 'png');
-                    $filename = $this->getSlotFilename($product->name, $slot, $extension);
-                    
-                    $image->move($frontendProductsPath, $filename);
-                    $imageUrl = '/products/' . $filename;
-                    
-                    $is50ml = ($slot === 1) ? 1 : 0;
-                    $isAdditional = ($slot >= 3) ? 1 : 0;
-                    
-                    ProductImage::create([
-                        'product_id' => $product->product_id,
-                        'image_url' => $imageUrl,
-                        'is_50ml' => $is50ml,
-                        'is_additional' => $isAdditional,
-                    ]);
+        }
+
+        // Fallback to legacy "images" array format if no slot files provided
+        if (empty($slotFiles) && $request->hasFile('images')) {
+            foreach ($request->file('images') as $index => $file) {
+                $slot = $index + 1;
+                if ($file && $slot <= 4) {
+                    $slotFiles[$slot] = $file;
                 }
+            }
+        }
+
+        // Process each provided slot upload
+        foreach ($slotFiles as $slot => $image) {
+            if ($image) {
+                $extension = strtolower($image->getClientOriginalExtension() ?: 'png');
+                $filename = $this->getSlotFilename($product->name, $slot, $extension);
+                
+                $image->move($frontendProductsPath, $filename);
+                $imageUrl = '/products/' . $filename;
+                
+                $is50ml = ($slot === 1) ? 1 : 0;
+                $isAdditional = ($slot >= 3) ? 1 : 0;
+                
+                ProductImage::create([
+                    'product_id' => $product->product_id,
+                    'image_url' => $imageUrl,
+                    'is_50ml' => $is50ml,
+                    'is_additional' => $isAdditional,
+                ]);
             }
         }
 
@@ -347,26 +391,17 @@ class ProductController extends Controller
             $is50ml = ($slot === 1) ? 1 : 0;
             $isAdditional = ($slot >= 3) ? 1 : 0;
 
-            // Find or create productimage record
-            $existingImage = ProductImage::where('product_id', $product->product_id)
-                ->where('is_50ml', $is50ml)
-                ->where('is_additional', $isAdditional);
-
-            // For additional images, we need to get the correct one by order
-            if ($isAdditional) {
-                if ($slot === 4) {
-                    // Get the second additional image
-                    $existingImage = $existingImage->orderBy('created_at', 'asc')->skip(1)->first();
-                } else {
-                    // Get the first additional image
-                    $existingImage = $existingImage->orderBy('created_at', 'asc')->first();
-                }
-            } else {
-                $existingImage = $existingImage->first();
-            }
+            // Find existing image using filename-based slot detection
+            $existingImage = $this->findSlotImage($product->product_id, $slot);
 
             if ($existingImage) {
-                // Update existing
+                // Update existing - delete old file first
+                $oldFilePath = $frontendProductsPath . '/' . basename($existingImage->image_url);
+                if (file_exists($oldFilePath)) {
+                    unlink($oldFilePath);
+                    \Log::info('Deleted old image file', ['path' => $oldFilePath]);
+                }
+                
                 $existingImage->image_url = $imageUrl;
                 $existingImage->save();
                 \Log::info('Updated ProductImage', [
@@ -407,20 +442,27 @@ class ProductController extends Controller
 
     public function destroy($id)
     {
-        $product = Product::findOrFail($id);
-        
-        // Delete all associated images from filesystem
-        $frontendProductsPath = base_path('../../frontend/web-5scent/public/products');
-        foreach ($product->images as $image) {
-            $filePath = $frontendProductsPath . basename($image->image_url);
-            if (file_exists($filePath)) {
-                unlink($filePath);
+        try {
+            $product = Product::findOrFail($id);
+            
+            // Delete all associated images from filesystem
+            $frontendProductsPath = base_path('../../frontend/web-5scent/public/products');
+            foreach ($product->images as $image) {
+                $filePath = $frontendProductsPath . '/' . basename($image->image_url);
+                if (file_exists($filePath)) {
+                    unlink($filePath);
+                    \Log::info('Deleted image file', ['path' => $filePath]);
+                }
             }
-        }
-        
-        $product->delete();
+            
+            $product->delete();
+            \Log::info('Product deleted successfully', ['product_id' => $id]);
 
-        return response()->json(['message' => 'Product deleted successfully']);
+            return response()->json(['message' => 'Product deleted successfully']);
+        } catch (\Exception $e) {
+            \Log::error('Error deleting product', ['product_id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['message' => 'Failed to delete product', 'error' => $e->getMessage()], 500);
+        }
     }
 
     public function deleteImage($productId, $imageId)

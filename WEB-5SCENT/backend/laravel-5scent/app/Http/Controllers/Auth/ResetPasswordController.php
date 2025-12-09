@@ -61,10 +61,10 @@ class ResetPasswordController extends Controller
 
             Log::info('PASSWORD RESET: Token found, checking expiry...');
 
-            // Check if token has expired (24 hours instead of 3 minutes)
+            // Check if token has expired (1 minute)
             // Use Carbon for proper timezone handling
             $tokenCreatedAtCarbon = \Carbon\Carbon::parse($resetRecord->created_at);
-            $expiresAt = $tokenCreatedAtCarbon->addHours(24);
+            $expiresAt = $tokenCreatedAtCarbon->addMinutes(1);
             $now = \Carbon\Carbon::now();
 
             Log::info('PASSWORD RESET: Token created at: ' . $tokenCreatedAtCarbon . ', Expires at: ' . $expiresAt . ', Current time: ' . $now);

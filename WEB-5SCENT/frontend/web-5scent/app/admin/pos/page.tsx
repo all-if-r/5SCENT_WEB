@@ -43,7 +43,7 @@ interface PaymentMethod {
 const PAYMENT_METHODS: PaymentMethod[] = [
   { label: 'Cash', value: 'Cash' },
   { label: 'QRIS', value: 'QRIS' },
-  { label: 'Virtual Account', value: 'Virtual Account' },
+  { label: 'Virtual Account', value: 'Virtual_Account' },
 ];
 
 export default function POSToolPage() {

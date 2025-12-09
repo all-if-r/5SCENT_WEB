@@ -54,11 +54,8 @@ class ForgotPasswordController extends Controller
             $token = Str::random(64);
             Log::info('PASSWORD RESET: Generated token: ' . substr($token, 0, 10) . '...');
             
-            // Delete any existing reset tokens for this email
-            $deletedCount = DB::table('password_reset_tokens')->where('email', $email)->delete();
-            Log::info('PASSWORD RESET: Deleted ' . $deletedCount . ' old tokens');
-            
-            // Create a new password reset token
+            // Create a new password reset token without deleting existing ones
+            // This allows users to request multiple reset links if needed
             $insertResult = DB::table('password_reset_tokens')->insert([
                 'email' => $email,
                 'token' => $token,

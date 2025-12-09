@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/contexts/AuthContext';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 
 export default function RegisterPage() {
   const router = useRouter();
   const { showToast } = useToast();
+  const { updateUser } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -72,11 +74,19 @@ export default function RegisterPage() {
       const { token, user } = response.data;
 
       // Store authentication data
-      localStorage.setItem('authToken', token);
+      localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
 
+      // Update AuthContext immediately so navbar reflects changes without page refresh
+      updateUser(user);
+
       showToast('Account created successfully', 'success');
-      router.push('/');
+      
+      // Refresh the page to ensure all data is synced
+      setTimeout(() => {
+        router.refresh();
+        router.push('/');
+      }, 500);
     } catch (error: any) {
       if (error.response?.data?.errors) {
         setErrors(error.response.data.errors);
