@@ -154,6 +154,7 @@ function CheckoutContent() {
     try {
       const response = await api.post('/orders', {
         cart_ids: selectedItemIds,
+        phone_number: formData.phoneNumber,
         address_line: formData.addressLine,
         district: formData.district,
         city: formData.city,

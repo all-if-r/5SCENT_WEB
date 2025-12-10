@@ -40,6 +40,7 @@ interface OrderData {
   user_id: number;
   total_price: number;
   status: 'Pending' | 'Packaging' | 'Shipping' | 'Delivered' | 'Cancelled';
+  phone_number?: string;
   address_line?: string;
   district?: string;
   city?: string;
@@ -735,7 +736,9 @@ function OrderHistoryContent() {
                         <FiPhone className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />
                         <div>
                           <p className="text-xs text-gray-600">Phone</p>
-                          <p className="text-sm font-medium text-gray-900">{modal.order.user?.phone || 'N/A'}</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {modal.order.phone_number || modal.order.user?.phone || 'N/A'}
+                          </p>
                         </div>
                       </div>
                     </div>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -49,6 +50,9 @@ class AuthController extends Controller
             'password' => Hash::make($validated['password']),
             'phone' => $validated['phone'] ?? null,
         ]);
+
+        // Create ProfileReminder notification for new user
+        NotificationService::createProfileReminderNotification($user->user_id);
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
@@ -100,6 +104,14 @@ class AuthController extends Controller
 
     public function me(Request $request)
     {
-        return response()->json($request->user());
+        $user = $request->user();
+
+        // Check if user has incomplete profile
+        if (empty($user->phone) || empty($user->address) || empty($user->city)) {
+            // Create ProfileReminder notification if one doesn't exist
+            NotificationService::createProfileReminderNotification($user->user_id);
+        }
+
+        return response()->json($user);
     }
 }

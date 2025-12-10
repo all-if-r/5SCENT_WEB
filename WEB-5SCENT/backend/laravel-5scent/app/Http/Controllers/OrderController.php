@@ -6,6 +6,8 @@ use App\Models\Cart;
 use App\Models\Order;
 use App\Models\OrderDetail;
 use App\Models\Payment;
+use App\Services\PhoneNormalizer;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 
 class OrderController extends Controller
@@ -65,6 +67,7 @@ class OrderController extends Controller
         $validated = $request->validate([
             'cart_ids' => 'required|array',
             'cart_ids.*' => 'exists:cart,cart_id',
+            'phone_number' => 'required|string|max:20',
             'address_line' => 'required|string|max:255',
             'district' => 'required|string|max:255',
             'city' => 'required|string|max:255',
@@ -98,9 +101,13 @@ class OrderController extends Controller
         // If payment method is Cash, automatically set status to Packaging
         $orderStatus = $validated['payment_method'] === 'Cash' ? 'Packaging' : 'Pending';
 
+        // Normalize phone number to +62 format
+        $normalizedPhone = PhoneNormalizer::normalize($validated['phone_number']);
+
         $order = Order::create([
             'user_id' => $request->user()->user_id,
             'status' => $orderStatus,
+            'phone_number' => $normalizedPhone,
             'address_line' => $validated['address_line'],
             'district' => $validated['district'],
             'city' => $validated['city'],
@@ -194,6 +201,9 @@ class OrderController extends Controller
         }
 
         $order->update(['status' => 'Delivered']);
+
+        // Create delivery notification
+        NotificationService::createDeliveryNotification($order->order_id);
 
         return response()->json(['message' => 'Order finished successfully']);
     }

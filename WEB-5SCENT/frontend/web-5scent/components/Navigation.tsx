@@ -6,13 +6,18 @@ import { HeartIcon } from '@heroicons/react/24/outline';
 import { LuShoppingCart } from 'react-icons/lu';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
+import { useNotification } from '@/contexts/NotificationContext';
 import ProfilePopup from './ProfilePopup';
+import { NotificationIcon } from './NotificationIcon';
+import { NotificationOverlay } from './NotificationOverlay';
 import api from '@/lib/api';
 
 export default function Navigation() {
   const { user } = useAuth();
   const { items } = useCart();
+  const { fetchNotifications } = useNotification();
   const [showProfile, setShowProfile] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [wishlistCount, setWishlistCount] = useState(0);
 
   const cartItemCount = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -20,10 +25,11 @@ export default function Navigation() {
   useEffect(() => {
     if (user) {
       fetchWishlistCount();
+      fetchNotifications();
     } else {
       setWishlistCount(0);
     }
-  }, [user]);
+  }, [user, fetchNotifications]);
 
   useEffect(() => {
     const handleWishlistUpdate = () => {
@@ -90,6 +96,9 @@ export default function Navigation() {
             <div className="flex items-center gap-4 pr-2">
               {user ? (
                 <>
+                  {/* Notification Icon - Only show when logged in */}
+                  <NotificationIcon onClick={() => setShowNotifications(true)} />
+
                   {/* Wishlist Icon - Only show when logged in */}
                   <Link
                     href="/wishlist"
@@ -179,6 +188,7 @@ export default function Navigation() {
         </div>
       </nav>
       {showProfile && user && <ProfilePopup onClose={() => setShowProfile(false)} />}
+      <NotificationOverlay isOpen={showNotifications} onClose={() => setShowNotifications(false)} />
     </>
   );
 }

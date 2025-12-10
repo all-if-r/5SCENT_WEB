@@ -43,6 +43,7 @@ interface Order {
   tracking_number: string | null;
   subtotal: number;
   total_price: number;
+  phone_number: string | null;
   address_line: string | null;
   district: string | null;
   city: string | null;
@@ -681,7 +682,9 @@ export default function OrdersPage() {
                       </div>
                       <div>
                         <div className="text-xs font-medium text-gray-600 mb-1">Phone</div>
-                        <div className="text-sm font-medium text-gray-900">{selectedOrder.user?.phone || 'N/A'}</div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {selectedOrder.phone_number || selectedOrder.user?.phone || 'N/A'}
+                        </div>
                       </div>
                       <div className="col-span-2">
                         <div className="text-xs font-medium text-gray-600 mb-1">Shipping Address</div>

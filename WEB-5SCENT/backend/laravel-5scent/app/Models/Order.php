@@ -18,6 +18,7 @@ class Order extends Model
         'subtotal',
         'total_price',
         'status',
+        'phone_number',
         'address_line',
         'district',
         'city',

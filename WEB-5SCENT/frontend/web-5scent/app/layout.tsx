@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AdminProvider } from "@/contexts/AdminContext";
 import { CartProvider } from "@/contexts/CartContext";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 import { ToastProvider } from "@/contexts/ToastContext";
 
 const poppins = Poppins({
@@ -30,7 +31,9 @@ export default function RootLayout({
           <AuthProvider>
             <AdminProvider>
               <CartProvider>
-                {children}
+                <NotificationProvider>
+                  {children}
+                </NotificationProvider>
               </CartProvider>
             </AdminProvider>
           </AuthProvider>

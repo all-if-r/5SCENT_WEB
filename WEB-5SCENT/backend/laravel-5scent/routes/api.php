@@ -12,6 +12,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SalesReportController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\Auth\GoogleAuthController;
@@ -83,6 +84,14 @@ Route::middleware('auth:sanctum')->group(function () {
     // Ratings
     Route::post('/ratings', [RatingController::class, 'store']);
     Route::put('/ratings/{id}', [RatingController::class, 'update']);
+
+    // Notifications
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [NotificationController::class, 'index']);
+        Route::get('/unread-count', [NotificationController::class, 'unreadCount']);
+        Route::put('/{id}/read', [NotificationController::class, 'markAsRead']);
+        Route::post('/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+    });
 
     // Payment
     Route::post('/payments/qris', [PaymentController::class, 'createQrisPayment']);

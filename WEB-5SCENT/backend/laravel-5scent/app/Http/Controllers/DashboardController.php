@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Payment;
 use App\Models\PosTransaction;
 use App\Services\SalesReportService;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -437,11 +438,17 @@ class DashboardController extends Controller
 
         $order = Order::with('payment')->findOrFail($id);
         
+        // Track if status was changed to Delivered
+        $statusChanged = false;
+        $wasDelivered = false;
+        
         // Prepare update array for order
         $orderUpdateData = [];
         
         // Update order status if provided
         if (!empty($validated['status'])) {
+            $statusChanged = $order->status !== $validated['status'];
+            $wasDelivered = $statusChanged && $validated['status'] === 'Delivered';
             $orderUpdateData['status'] = $validated['status'];
         }
         
@@ -453,6 +460,11 @@ class DashboardController extends Controller
         // Apply order updates if there are any
         if (!empty($orderUpdateData)) {
             $order->update($orderUpdateData);
+        }
+        
+        // Create delivery notification if order was just marked as delivered
+        if ($wasDelivered) {
+            NotificationService::createDeliveryNotification($order->order_id);
         }
         
         // Update payment status if provided and order has a payment record
