@@ -55,6 +55,9 @@ class QrisPaymentController extends Controller
                 ], 400);
             }
 
+            // Load order with relationships for Midtrans payload
+            $order->load(['user', 'details.product']);
+
             // Configure Midtrans SDK
             $this->configureMidtrans();
 
@@ -65,18 +68,98 @@ class QrisPaymentController extends Controller
             $now = new \DateTime('now', new \DateTimeZone('Asia/Jakarta'));
             $orderTime = $now->format('Y-m-d H:i:s O');
 
-            // Build QRIS charge payload
+            // Build complete customer details from database
+            $customer = $order->user;
+            $customerDetails = [
+                'first_name' => $customer->name ?? 'Customer',
+                'email' => $customer->email ?? 'customer@example.com',
+                'phone' => $customer->phone ?? $order->phone_number ?? '',
+                'billing_address' => [
+                    'first_name' => $customer->name ?? 'Customer',
+                    'phone' => $customer->phone ?? $order->phone_number ?? '',
+                    'address' => $order->address_line ?? '',
+                    'city' => $order->city ?? '',
+                    'postal_code' => $order->postal_code ?? '',
+                    'country_code' => 'IDN',
+                ],
+                'shipping_address' => [
+                    'first_name' => $customer->name ?? 'Customer',
+                    'phone' => $order->phone_number ?? $customer->phone ?? '',
+                    'address' => $order->address_line ?? '',
+                    'city' => $order->city ?? '',
+                    'postal_code' => $order->postal_code ?? '',
+                    'country_code' => 'IDN',
+                ],
+            ];
+
+            // Build item details from order details and products
+            $itemDetails = [];
+            $itemsTotal = 0;
+            
+            foreach ($order->details as $detail) {
+                $product = $detail->product;
+                if ($product) {
+                    $itemPrice = (int)$detail->price;
+                    $itemQuantity = (int)$detail->quantity;
+                    $subtotal = $itemPrice * $itemQuantity;
+                    
+                    $itemDetails[] = [
+                        'id' => (string)$product->product_id,
+                        'price' => $itemPrice,
+                        'quantity' => $itemQuantity,
+                        'name' => $product->name . ' (' . $detail->size . ')',
+                    ];
+                    
+                    $itemsTotal += $subtotal;
+                }
+            }
+
+            // Ensure item_details sum matches gross_amount (Midtrans requirement)
+            $grossAmount = (int)$order->total_price;
+            
+            if (empty($itemDetails)) {
+                // If no items found, create a generic item
+                Log::warning('No order details found, creating generic item', [
+                    'order_id' => $order->order_id,
+                    'gross_amount' => $grossAmount,
+                ]);
+                $itemDetails = [
+                    [
+                        'id' => 'ORDER',
+                        'price' => $grossAmount,
+                        'quantity' => 1,
+                        'name' => 'Order #' . $order->order_id,
+                    ]
+                ];
+            } elseif ($itemsTotal !== $grossAmount) {
+                // If items total doesn't match gross amount, adjust by creating adjustment item
+                $difference = $grossAmount - $itemsTotal;
+                Log::info('Adjusting item details to match gross amount', [
+                    'order_id' => $order->order_id,
+                    'items_total' => $itemsTotal,
+                    'gross_amount' => $grossAmount,
+                    'difference' => $difference,
+                ]);
+                
+                if ($difference !== 0) {
+                    $itemDetails[] = [
+                        'id' => 'ADJUSTMENT',
+                        'price' => $difference,
+                        'quantity' => 1,
+                        'name' => 'Adjustment',
+                    ];
+                }
+            }
+
+            // Build QRIS charge payload with complete details
             $payload = [
                 'payment_type' => 'qris',
                 'transaction_details' => [
                     'order_id' => $midtransOrderId,
-                    'gross_amount' => (int)$order->total_price,
+                    'gross_amount' => $grossAmount,
                 ],
-                'customer_details' => [
-                    'first_name' => $order->user->name ?? 'Customer',
-                    'email' => $order->user->email ?? 'customer@example.com',
-                    'phone' => $order->phone_number ?? '',
-                ],
+                'customer_details' => $customerDetails,
+                'item_details' => $itemDetails,
                 'qris' => [
                     'acquirer' => 'gopay',
                 ],
@@ -87,89 +170,130 @@ class QrisPaymentController extends Controller
                 ],
             ];
 
-            Log::info('Calling Midtrans CoreApi::charge', [
+            Log::info('Calling Midtrans Core API', [
+                'endpoint' => 'v2/charge',
                 'midtrans_order_id' => $midtransOrderId,
-                'gross_amount' => (int)$order->total_price,
+                'gross_amount' => $grossAmount,
+                'customer_email' => $customer->email,
+                'item_details_count' => count($itemDetails),
+                'items_total_calculated' => array_sum(array_map(fn($item) => $item['price'] * $item['quantity'], $itemDetails)),
             ]);
 
-            // Call Midtrans Core API using HTTP client instead of SDK to avoid parsing issues
+            // Call Midtrans Core API
             $response = $this->callMidtransApi($payload);
 
-            Log::info('Midtrans response received', [
+            Log::info('Midtrans API response received', [
                 'status_code' => $response['status_code'] ?? 'unknown',
                 'transaction_id' => $response['transaction_id'] ?? 'null',
                 'transaction_status' => $response['transaction_status'] ?? 'null',
+                'payment_type' => $response['payment_type'] ?? 'unknown',
                 'has_actions' => isset($response['actions']),
+                'actions_count' => isset($response['actions']) ? count($response['actions']) : 0,
             ]);
 
-            // Check for errors
+            // Check for errors in response
             if (isset($response['status_code']) && $response['status_code'] >= 400) {
-                Log::error('Midtrans API error response', [
+                Log::error('Midtrans API returned error status', [
                     'status_code' => $response['status_code'],
+                    'error_id' => $response['id'] ?? null,
                     'error_message' => $response['error_message'] ?? 'Unknown error',
-                    'response' => $response,
+                    'status_message' => $response['status_message'] ?? null,
+                    'full_response' => json_encode($response),
                 ]);
-                
-                // Fallback for development: generate mock QR code
-                if (!config('midtrans.is_production', false)) {
-                    Log::info('Development mode: Creating mock QRIS payment');
-                    $mockQrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' . urlencode('ORDER-' . $order->order_id . '-' . time());
-                    $expiredAt = now()->addMinutes(5);
-                    $transactionId = 'MOCK-' . $order->order_id . '-' . time();
-                    $qrUrl = $mockQrUrl;
-                } else {
-                    return response()->json([
-                        'success' => false,
-                        'message' => $response['error_message'] ?? 'Midtrans API error',
-                    ], 400);
-                }
-            } else {
-                // Extract transaction ID
-                $transactionId = $response['transaction_id'] ?? null;
 
-                // Find QR code URL in actions array
-                $qrUrl = null;
-                if (isset($response['actions']) && is_array($response['actions'])) {
-                    foreach ($response['actions'] as $action) {
-                        if (isset($action['name']) && in_array($action['name'], ['generate-qr-code', 'generate-qr-code-v2'])) {
-                            $qrUrl = $action['url'] ?? null;
-                            break;
-                        }
-                    }
-                }
-
-                if (!$qrUrl) {
-                    Log::warning('QR URL not found in Midtrans response', [
-                        'response_keys' => array_keys((array)$response),
-                        'actions_count' => isset($response->actions) ? count($response->actions) : 0,
-                    ]);
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Failed to generate QR code from Midtrans',
-                    ], 500);
-                }
-                
-                $expiredAt = now()->addMinutes(5);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to create QRIS payment: ' . ($response['error_message'] ?? 'Midtrans error'),
+                ], 400);
             }
 
-            // Create or update payment transaction record
+            // Validate response has required fields
+            if (!isset($response['transaction_id']) || !isset($response['order_id'])) {
+                Log::error('Midtrans response missing required fields', [
+                    'response' => $response,
+                    'has_transaction_id' => isset($response['transaction_id']),
+                    'has_order_id' => isset($response['order_id']),
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid response from Midtrans API',
+                ], 500);
+            }
+
+            // Extract transaction details
+            $transactionId = $response['transaction_id'];
+
+            // Find QR code URL in actions array
+            $qrUrl = null;
+            if (isset($response['actions']) && is_array($response['actions'])) {
+                Log::debug('Searching for QR code in actions', [
+                    'actions_count' => count($response['actions']),
+                    'action_names' => array_column($response['actions'], 'name'),
+                ]);
+
+                foreach ($response['actions'] as $action) {
+                    if (isset($action['name']) && 
+                        ($action['name'] === 'generate-qr-code' || 
+                         $action['name'] === 'generate-qr-code-v2' ||
+                         strpos($action['name'], 'qr') !== false)) {
+                        $qrUrl = $action['url'] ?? null;
+                        Log::debug('Found QR code URL', [
+                            'action_name' => $action['name'],
+                            'qr_url' => substr($qrUrl, 0, 50) . '...',
+                        ]);
+                        break;
+                    }
+                }
+            }
+
+            if (!$qrUrl) {
+                Log::error('QR URL not found in Midtrans response', [
+                    'transaction_id' => $transactionId,
+                    'actions_present' => isset($response['actions']),
+                    'full_response' => json_encode($response),
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to extract QR code URL from Midtrans response',
+                ], 500);
+            }
+
+            // Extract transaction status from response
+            $transactionStatus = $response['transaction_status'] ?? 'pending';
+
+            // Set expiry time
+            $expiredAt = now()->addMinutes(5);
+
+            Log::debug('Midtrans response fully processed', [
+                'transaction_id' => $transactionId,
+                'transaction_status' => $transactionStatus,
+                'qr_url_length' => strlen($qrUrl),
+                'will_expire_at' => $expiredAt->toIso8601String(),
+            ]);
+
+            // Create or update payment transaction record with Midtrans response data
             $paymentTransaction = PaymentTransaction::updateOrCreate(
                 ['order_id' => $order->order_id],
                 [
                     'order_id' => $order->order_id,
                     'midtrans_order_id' => $midtransOrderId,
                     'midtrans_transaction_id' => $transactionId,
-                    'payment_type' => 'qris',
-                    'gross_amount' => (int)$order->total_price,
+                    'payment_type' => $response['payment_type'] ?? 'qris',
+                    'gross_amount' => $response['gross_amount'] ?? (int)$order->total_price,
                     'qr_url' => $qrUrl,
-                    'status' => 'pending',
+                    'status' => $transactionStatus,
                     'expired_at' => $expiredAt,
+                    'raw_notification' => json_encode($response),
                 ]
             );
 
-            Log::info('Payment transaction created/updated', [
+            Log::info('QRIS transaction created/updated successfully', [
                 'qris_transaction_id' => $paymentTransaction->qris_transaction_id,
                 'order_id' => $order->order_id,
+                'midtrans_transaction_id' => $transactionId,
+                'status' => $transactionStatus,
             ]);
 
             // Update order payment status
@@ -177,18 +301,37 @@ class QrisPaymentController extends Controller
                 'payment_status' => 'pending',
             ]);
 
+            Log::info('QRIS payment response sent to frontend', [
+                'order_id' => $order->order_id,
+                'qris_transaction_id' => $paymentTransaction->qris_transaction_id,
+                'qr_url_available' => !empty($qrUrl),
+            ]);
+
             return response()->json([
                 'success' => true,
                 'order_id' => $order->order_id,
+                'qris_transaction_id' => $paymentTransaction->qris_transaction_id,
                 'qris' => [
                     'qr_url' => $qrUrl,
                     'expired_at' => $expiredAt->toIso8601String(),
-                    'status' => 'pending',
+                    'status' => $transactionStatus,
+                    'midtrans_order_id' => $midtransOrderId,
+                    'midtrans_transaction_id' => $transactionId,
                 ],
             ]);
 
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            Log::error('Order not found in QRIS payment creation', [
+                'order_id' => $validated['order_id'] ?? null,
+                'exception' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
         } catch (\Exception $e) {
-            Log::error('QRIS payment creation error', [
+            Log::error('Unexpected error in QRIS payment creation', [
                 'exception_class' => get_class($e),
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
@@ -198,7 +341,8 @@ class QrisPaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => 'An unexpected error occurred while creating QRIS payment',
+                'error_details' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
     }

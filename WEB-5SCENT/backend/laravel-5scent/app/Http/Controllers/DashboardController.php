@@ -261,6 +261,7 @@ class DashboardController extends Controller
 
         // Best sellers - filter by rating >= 4.5, sort by rating descending, limit to 5
         $bestSellers = Product::with('images')
+            ->distinct()
             ->withCount('orderDetails')
             ->get()
             ->filter(function($product) {

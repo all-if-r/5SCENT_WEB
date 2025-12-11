@@ -186,10 +186,14 @@ export default function QrisPage({ params }: PageProps) {
   }
 
   const handleDownloadQR = async () => {
-    if (!data) return;
+    if (!data || !orderId) return;
     try {
-      const response = await fetch(data.qris.qr_url);
-      const blob = await response.blob();
+      // Use backend proxy endpoint to avoid CORS issues with Midtrans
+      const response = await api.get(`/orders/${orderId}/qris-download`, {
+        responseType: 'blob',
+      });
+      
+      const blob = response.data;
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -200,7 +204,7 @@ export default function QrisPage({ params }: PageProps) {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (error) {
-      console.error('Failed to download QR code:', error);
+      console.error('Failed to download QR code via backend proxy:', error);
     }
   };
 

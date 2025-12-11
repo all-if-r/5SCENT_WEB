@@ -309,7 +309,7 @@ export default function AdminDashboardPage() {
 
               <div className="space-y-6">
                 {dashboardData.bestSellers?.map((product, index) => (
-                  <div key={product.product_id} className="flex items-start gap-4 pb-6 border-b border-gray-200 last:border-0 last:pb-0">
+                  <div key={`best-seller-${index}-${product.product_id}`} className="flex items-start gap-4 pb-6 border-b border-gray-200 last:border-0 last:pb-0">
                     {/* Ranking Circle */}
                     <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
                       {index + 1}

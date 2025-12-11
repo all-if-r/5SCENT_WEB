@@ -124,6 +124,16 @@ class MidtransNotificationController extends Controller
             // Update Order based on payment status
             $this->updateOrderStatus($order, $transactionStatus, $fraudStatus);
 
+            // Update payment table status
+            $this->updatePaymentStatus($order->order_id, $transactionStatus);
+
+            Log::info('Midtrans notification processed successfully', [
+                'order_id' => $orderId,
+                'transaction_status' => $transactionStatus,
+                'order_status_updated' => true,
+                'payment_status_updated' => true,
+            ]);
+
             return response()->json(['status' => 'ok'], 200);
 
         } catch (\Exception $e) {
@@ -216,6 +226,47 @@ class MidtransNotificationController extends Controller
                     'order_id' => $order->order_id,
                 ]);
                 break;
+        }
+    }
+
+    /**
+     * Update payment table status based on transaction status
+     */
+    private function updatePaymentStatus(string $orderId, string $transactionStatus): void
+    {
+        try {
+            $payment = \App\Models\Payment::where('order_id', $orderId)->first();
+            
+            if (!$payment) {
+                Log::warning('Payment record not found for order', [
+                    'order_id' => $orderId,
+                ]);
+                return;
+            }
+
+            $mappedStatus = match ($transactionStatus) {
+                'settlement', 'capture' => 'success',
+                'pending' => 'pending',
+                'expire' => 'failed',
+                'cancel', 'deny' => 'failed',
+                'failure' => 'failed',
+                default => 'pending',
+            };
+
+            $payment->update([
+                'status' => $mappedStatus,
+            ]);
+
+            Log::info('Payment status updated', [
+                'order_id' => $orderId,
+                'transaction_status' => $transactionStatus,
+                'payment_status' => $mappedStatus,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error updating payment status', [
+                'order_id' => $orderId,
+                'exception' => $e->getMessage(),
+            ]);
         }
     }
 }
