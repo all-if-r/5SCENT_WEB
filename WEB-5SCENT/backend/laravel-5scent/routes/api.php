@@ -13,6 +13,10 @@ use App\Http\Controllers\PosController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SalesReportController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\BuyNowController;
+use App\Http\Controllers\QrisPaymentController;
+use App\Http\Controllers\MidtransNotificationController;
+use App\Http\Controllers\OrderQrisController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\Auth\GoogleAuthController;
@@ -79,6 +83,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/cancel', [OrderController::class, 'cancel']);
         Route::post('/{id}/finish', [OrderController::class, 'finish']);
         Route::get('/{id}/reviews', [RatingController::class, 'getOrderReviews']);
+
+        // QRIS Payment Routes
+        Route::get('/{orderId}/qris-detail', [OrderQrisController::class, 'getQrisDetail']);
+        Route::get('/{orderId}/payment-status', [OrderQrisController::class, 'getPaymentStatus']);
     });
 
     // Ratings
@@ -94,7 +102,14 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Payment
-    Route::post('/payments/qris', [PaymentController::class, 'createQrisPayment']);
+    Route::post('/payments/qris', [QrisPaymentController::class, 'createQrisPayment']);
+
+    // Buy Now
+    Route::prefix('buy-now')->group(function () {
+        Route::post('/initiate', [BuyNowController::class, 'initiateCheckout']);
+        Route::get('/session', [BuyNowController::class, 'getCheckoutSession']);
+        Route::post('/clear', [BuyNowController::class, 'clearCheckoutSession']);
+    });
 });
 
 // Admin routes
@@ -136,4 +151,7 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
 
 // Payment webhook (no auth required)
 Route::post('/payments/webhook', [PaymentController::class, 'webhook']);
+
+// Midtrans notification webhook (no auth required)
+Route::post('/midtrans/notification', [MidtransNotificationController::class, 'handleNotification']);
 

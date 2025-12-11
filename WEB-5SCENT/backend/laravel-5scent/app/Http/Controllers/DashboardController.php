@@ -9,6 +9,7 @@ use App\Models\Payment;
 use App\Models\PosTransaction;
 use App\Services\SalesReportService;
 use App\Services\NotificationService;
+use App\Helpers\OrderCodeHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -437,19 +438,43 @@ class DashboardController extends Controller
         ]);
 
         $order = Order::with('payment')->findOrFail($id);
+        $orderCode = OrderCodeHelper::formatOrderCode($order);
         
-        // Track if status was changed to Delivered
-        $statusChanged = false;
-        $wasDelivered = false;
+        // Store old status to detect changes
+        $oldStatus = $order->status;
+        $oldPaymentStatus = $order->payment?->status;
         
         // Prepare update array for order
         $orderUpdateData = [];
         
-        // Update order status if provided
-        if (!empty($validated['status'])) {
-            $statusChanged = $order->status !== $validated['status'];
-            $wasDelivered = $statusChanged && $validated['status'] === 'Delivered';
-            $orderUpdateData['status'] = $validated['status'];
+        // Update order status if provided and different
+        if (!empty($validated['status']) && $order->status !== $validated['status']) {
+            $newStatus = $validated['status'];
+            $orderUpdateData['status'] = $newStatus;
+            
+            // Create OrderUpdate notification based on new status
+            match($newStatus) {
+                'Packaging' => NotificationService::createOrderUpdateNotification(
+                    $order->order_id,
+                    "Your order {$orderCode} is being carefully packaged."
+                ),
+                'Shipping' => NotificationService::createOrderUpdateNotification(
+                    $order->order_id,
+                    "Your order {$orderCode} has been shipped. Track your package for delivery updates."
+                ),
+                'Delivered' => [
+                    NotificationService::createOrderUpdateNotification(
+                        $order->order_id,
+                        "Your order {$orderCode} has been delivered."
+                    ),
+                    NotificationService::createDeliveryNotification($order->order_id),
+                ],
+                'Cancelled' => NotificationService::createOrderUpdateNotification(
+                    $order->order_id,
+                    "Your order {$orderCode} has been cancelled."
+                ),
+                default => null,
+            };
         }
         
         // Update tracking number if provided
@@ -462,16 +487,33 @@ class DashboardController extends Controller
             $order->update($orderUpdateData);
         }
         
-        // Create delivery notification if order was just marked as delivered
-        if ($wasDelivered) {
-            NotificationService::createDeliveryNotification($order->order_id);
-        }
-        
-        // Update payment status if provided and order has a payment record
-        if (!empty($validated['payment_status']) && $order->payment) {
+        // Update payment status if provided and different
+        if (!empty($validated['payment_status']) && $order->payment && $order->payment->status !== $validated['payment_status']) {
+            $newPaymentStatus = $validated['payment_status'];
             $order->payment->update([
-                'status' => $validated['payment_status'],
+                'status' => $newPaymentStatus,
             ]);
+            
+            // Create Payment notification based on new payment status
+            match($newPaymentStatus) {
+                'Pending' => NotificationService::createPaymentNotification(
+                    $order->order_id,
+                    "Your payment for order {$orderCode} is pending and is being processed."
+                ),
+                'Success' => NotificationService::createPaymentNotification(
+                    $order->order_id,
+                    "Your payment for order {$orderCode} was successful. Thank you for your purchase."
+                ),
+                'Failed' => NotificationService::createPaymentNotification(
+                    $order->order_id,
+                    "Your payment for order {$orderCode} failed. Please try again or use another payment method."
+                ),
+                'Refunded' => NotificationService::createRefundNotification(
+                    $order->order_id,
+                    "Your payment for order {$orderCode} has been refunded. The funds will be returned to your account shortly."
+                ),
+                default => null,
+            };
         }
 
         return response()->json($order->fresh()->load('user', 'details.product.images', 'payment'));

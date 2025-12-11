@@ -6,8 +6,10 @@ use App\Models\Cart;
 use App\Models\Order;
 use App\Models\OrderDetail;
 use App\Models\Payment;
+use App\Models\Product;
 use App\Services\PhoneNormalizer;
 use App\Services\NotificationService;
+use App\Helpers\OrderCodeHelper;
 use Illuminate\Http\Request;
 
 class OrderController extends Controller
@@ -65,8 +67,12 @@ class OrderController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'cart_ids' => 'required|array',
+            'checkout_mode' => 'nullable|in:cart,buy-now',
+            'cart_ids' => 'nullable|array',
             'cart_ids.*' => 'exists:cart,cart_id',
+            'product_id' => 'nullable|exists:product,product_id',
+            'size' => 'nullable|in:30ml,50ml',
+            'quantity' => 'nullable|integer|min:1',
             'phone_number' => 'required|string|max:20',
             'address_line' => 'required|string|max:255',
             'district' => 'required|string|max:255',
@@ -74,6 +80,112 @@ class OrderController extends Controller
             'province' => 'required|string|max:255',
             'postal_code' => 'required|string|max:20',
             'payment_method' => 'required|in:QRIS,Virtual_Account,Cash',
+        ]);
+
+        $checkoutMode = $validated['checkout_mode'] ?? 'cart';
+
+        // Buy Now mode - create order from single product
+        if ($checkoutMode === 'buy-now') {
+            return $this->processBuyNowCheckout($request, $validated);
+        }
+
+        // Cart checkout mode - create order from cart items
+        return $this->processCartCheckout($request, $validated);
+    }
+
+    /**
+     * Process a Buy Now checkout
+     */
+    private function processBuyNowCheckout(Request $request, array $validated)
+    {
+        $request->validate([
+            'product_id' => 'required|exists:product,product_id',
+            'size' => 'required|in:30ml,50ml',
+            'quantity' => 'required|integer|min:1',
+        ]);
+
+        $product = Product::findOrFail($validated['product_id']);
+        
+        // Determine the price based on size
+        $priceField = $validated['size'] === '30ml' ? 'price_30ml' : 'price_50ml';
+        $stockField = $validated['size'] === '30ml' ? 'stock_30ml' : 'stock_50ml';
+        
+        $price = $product->$priceField;
+        $availableStock = $product->$stockField;
+        $quantity = $validated['quantity'];
+
+        // Validate stock
+        if ($quantity > $availableStock) {
+            return response()->json([
+                'message' => 'Insufficient stock available',
+                'available' => $availableStock,
+            ], 400);
+        }
+
+        $subtotal = $price * $quantity;
+        $tax = $subtotal * 0.05;
+        $totalPrice = $subtotal + $tax;
+
+        // If payment method is Cash, automatically set status to Packaging
+        $orderStatus = $validated['payment_method'] === 'Cash' ? 'Packaging' : 'Pending';
+
+        // Normalize phone number to +62 format
+        $normalizedPhone = PhoneNormalizer::normalize($validated['phone_number']);
+
+        $order = Order::create([
+            'user_id' => $request->user()->user_id,
+            'status' => $orderStatus,
+            'phone_number' => $normalizedPhone,
+            'address_line' => $validated['address_line'],
+            'district' => $validated['district'],
+            'city' => $validated['city'],
+            'province' => $validated['province'],
+            'postal_code' => $validated['postal_code'],
+            'subtotal' => $subtotal,
+            'total_price' => $totalPrice,
+            'payment_method' => $validated['payment_method'],
+        ]);
+
+        // Create order detail
+        OrderDetail::create([
+            'order_id' => $order->order_id,
+            'product_id' => $product->product_id,
+            'size' => $validated['size'],
+            'quantity' => $quantity,
+            'price' => $price,
+            'subtotal' => $subtotal,
+        ]);
+
+        // Update product stock
+        $product->decrement($stockField, $quantity);
+
+        // Create payment record
+        Payment::create([
+            'order_id' => $order->order_id,
+            'method' => $validated['payment_method'],
+            'amount' => $totalPrice,
+            'status' => 'Pending',
+            'created_at' => $order->created_at,
+        ]);
+
+        // Create initial payment notification
+        $orderCode = OrderCodeHelper::formatOrderCode($order);
+        NotificationService::createPaymentNotification(
+            $order->order_id,
+            "Your payment for order {$orderCode} is pending and is being processed."
+        );
+
+        return response()->json($order->load('details.product.images', 'payment'), 201);
+    }
+
+    /**
+     * Process a regular cart checkout
+     */
+    private function processCartCheckout(Request $request, array $validated)
+    {
+        $request->validate([
+            'cart_ids' => 'required|array',
+            'cart_ids.*' => 'exists:cart,cart_id',
         ]);
 
         $cartItems = Cart::with('product')
@@ -155,6 +267,13 @@ class OrderController extends Controller
             'created_at' => $order->created_at,
         ]);
 
+        // Create initial payment notification
+        $orderCode = OrderCodeHelper::formatOrderCode($order);
+        NotificationService::createPaymentNotification(
+            $order->order_id,
+            "Your payment for order {$orderCode} is pending and is being processed."
+        );
+
         return response()->json($order->load('details.product.images', 'payment'), 201);
     }
 
@@ -202,7 +321,16 @@ class OrderController extends Controller
 
         $order->update(['status' => 'Delivered']);
 
-        // Create delivery notification
+        // Get order code for notifications
+        $orderCode = OrderCodeHelper::formatOrderCode($order);
+
+        // Create OrderUpdate notification for delivery
+        NotificationService::createOrderUpdateNotification(
+            $order->order_id,
+            "Your order {$orderCode} has been delivered."
+        );
+        
+        // Create delivery notification for review
         NotificationService::createDeliveryNotification($order->order_id);
 
         return response()->json(['message' => 'Order finished successfully']);

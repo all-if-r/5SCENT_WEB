@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\Payment;
+use App\Services\NotificationService;
+use App\Helpers\OrderCodeHelper;
 use Illuminate\Http\Request;
 
 class PaymentController extends Controller
@@ -117,15 +119,39 @@ class PaymentController extends Controller
         }
 
         $order = $payment->order;
+        $orderCode = OrderCodeHelper::formatOrderCode($order);
+        $oldPaymentStatus = $payment->status;
 
         if ($transactionStatus === 'settlement') {
             $payment->update([
                 'status' => 'Success',
                 'transaction_time' => now(),
             ]);
+            
+            // Create payment success notification
+            if ($oldPaymentStatus !== 'Success') {
+                NotificationService::createPaymentNotification(
+                    $order->order_id,
+                    "Your payment for order {$orderCode} was successful. Thank you for your purchase."
+                );
+            }
         } elseif ($transactionStatus === 'cancel' || $transactionStatus === 'expire') {
             $payment->update(['status' => 'Failed']);
             $order->update(['status' => 'Cancel']);
+            
+            // Create payment failed notification
+            if ($oldPaymentStatus !== 'Failed') {
+                NotificationService::createPaymentNotification(
+                    $order->order_id,
+                    "Your payment for order {$orderCode} failed. Please try again or use another payment method."
+                );
+            }
+            
+            // Create order update notification for cancellation
+            NotificationService::createOrderUpdateNotification(
+                $order->order_id,
+                "Your order {$orderCode} has been cancelled."
+            );
         }
 
         return response()->json(['message' => 'Webhook processed']);

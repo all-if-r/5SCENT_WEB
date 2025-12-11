@@ -122,7 +122,7 @@ export const NotificationOverlay: React.FC<NotificationOverlayProps> = ({
             </div>
           ) : (
             <div className="p-4 space-y-3">
-              {notifications.filter(n => !n.is_read).map((notification) => (
+              {notifications.map((notification) => (
                 <NotificationCard
                   key={notification.notif_id}
                   notification={notification}

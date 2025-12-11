@@ -106,12 +106,6 @@ class AuthController extends Controller
     {
         $user = $request->user();
 
-        // Check if user has incomplete profile
-        if (empty($user->phone) || empty($user->address) || empty($user->city)) {
-            // Create ProfileReminder notification if one doesn't exist
-            NotificationService::createProfileReminderNotification($user->user_id);
-        }
-
         return response()->json($user);
     }
 }

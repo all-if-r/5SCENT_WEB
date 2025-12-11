@@ -43,12 +43,26 @@ interface FormErrors {
   paymentMethod?: string;
 }
 
+interface BuyNowCheckoutData {
+  mode: string;
+  product_id: number;
+  product_name: string;
+  size: string;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+  created_at: string;
+}
+
 function CheckoutContent() {
   const { user } = useAuth();
   const { items, refreshCart } = useCart();
   const { showToast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
+  
+  // Determine checkout mode from URL
+  const checkoutMode = searchParams.get('mode') || 'cart';
   const selectedItemIds = searchParams.get('items')?.split(',').map(Number) || [];
 
   const [formData, setFormData] = useState<FormData>({
@@ -65,6 +79,36 @@ function CheckoutContent() {
   const [paymentMethod, setPaymentMethod] = useState<'QRIS' | 'Virtual_Account' | 'Cash'>('QRIS');
   const [loading, setLoading] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [buyNowData, setBuyNowData] = useState<BuyNowCheckoutData | null>(null);
+  const [loadingCheckoutData, setLoadingCheckoutData] = useState(checkoutMode === 'buy-now');
+
+  // Fetch buy-now checkout data if in buy-now mode
+  useEffect(() => {
+    if (checkoutMode === 'buy-now') {
+      fetchBuyNowData();
+    }
+  }, [checkoutMode]);
+
+  const fetchBuyNowData = async () => {
+    try {
+      const response = await api.get('/buy-now/session');
+      const sessionData = response.data?.data;
+      
+      if (!sessionData) {
+        showToast('No Buy Now session found. Redirecting...', 'warning');
+        setTimeout(() => router.push('/products'), 1500);
+        return;
+      }
+      
+      setBuyNowData(sessionData);
+    } catch (error) {
+      console.error('Error fetching buy-now session:', error);
+      showToast('Failed to load checkout data. Please try again.', 'error');
+      setTimeout(() => router.push('/products'), 1500);
+    } finally {
+      setLoadingCheckoutData(false);
+    }
+  };
 
   useEffect(() => {
     if (!user) {
@@ -152,8 +196,9 @@ function CheckoutContent() {
 
     setLoading(true);
     try {
-      const response = await api.post('/orders', {
-        cart_ids: selectedItemIds,
+      // Build request body based on checkout mode
+      const requestBody: any = {
+        checkout_mode: checkoutMode,
         phone_number: formData.phoneNumber,
         address_line: formData.addressLine,
         district: formData.district,
@@ -161,7 +206,34 @@ function CheckoutContent() {
         province: formData.province,
         postal_code: formData.postalCode,
         payment_method: paymentMethod,
-      });
+      };
+
+      if (checkoutMode === 'cart') {
+        requestBody.cart_ids = selectedItemIds.length > 0 ? selectedItemIds : items.map(item => item.cart_id);
+      } else if (checkoutMode === 'buy-now' && buyNowData) {
+        requestBody.product_id = buyNowData.product_id;
+        requestBody.size = buyNowData.size;
+        requestBody.quantity = buyNowData.quantity;
+      }
+
+      const response = await api.post('/orders', requestBody);
+
+      // Helper function to handle post-checkout actions
+      const handlePostCheckout = async () => {
+        // Clear buy-now session if applicable
+        if (checkoutMode === 'buy-now') {
+          try {
+            await api.post('/buy-now/clear');
+          } catch (error) {
+            console.error('Failed to clear buy-now session:', error);
+          }
+        }
+        refreshCart();
+        // Add small delay to ensure data is ready before navigating
+        setTimeout(() => {
+          router.push('/orders');
+        }, 500);
+      };
 
       if (paymentMethod === 'QRIS') {
         // Create QRIS payment
@@ -177,19 +249,17 @@ function CheckoutContent() {
           if (paymentResponse.data.token.startsWith('mock-')) {
             // Mock mode - just complete the order
             showToast('Order placed successfully (Mock Payment)', 'success');
-            refreshCart();
-            router.push('/orders');
+            await handlePostCheckout();
           } else if (window.snap) {
             // Use Midtrans Snap
             window.snap.pay(paymentResponse.data.token, {
-              onSuccess: () => {
+              onSuccess: async () => {
                 showToast('Payment successful', 'success');
-                refreshCart();
-                router.push('/orders');
+                await handlePostCheckout();
               },
-              onPending: () => {
+              onPending: async () => {
                 showToast('Payment pending', 'info');
-                router.push('/orders');
+                await handlePostCheckout();
               },
               onError: () => {
                 showToast('Payment failed', 'error');
@@ -198,16 +268,14 @@ function CheckoutContent() {
           } else {
             // Midtrans Snap not loaded, but we have a token
             showToast('Payment gateway not available. Order placed.', 'info');
-            refreshCart();
-            router.push('/orders');
+            await handlePostCheckout();
           }
         } else {
           showToast('Unable to process payment', 'error');
         }
       } else {
         showToast('Order placed successfully', 'success');
-        refreshCart();
-        router.push('/orders');
+        await handlePostCheckout();
       }
     } catch (error: any) {
       showToast(error.response?.data?.message || 'Failed to place order', 'error');
@@ -218,23 +286,56 @@ function CheckoutContent() {
 
   if (!user) return null;
 
-  const selectedItems = items.filter(item => selectedItemIds.includes(item.cart_id));
-  const subtotal = selectedItems.reduce((sum, item) => sum + item.total, 0);
+  // Calculate selected items based on checkout mode
+  const itemsList = checkoutMode === 'buy-now'
+    ? buyNowData
+      ? [
+          {
+            cart_id: `buy-now-${buyNowData.product_id}`,
+            product_id: buyNowData.product_id,
+            name: buyNowData.product_name,
+            size: buyNowData.size,
+            quantity: buyNowData.quantity,
+            price: buyNowData.unit_price,
+            image: buyNowData.image || '/images/placeholder.jpg',
+            total: buyNowData.subtotal,
+          },
+        ]
+      : []
+    : items.filter(item => selectedItemIds.length === 0 || selectedItemIds.includes(item.cart_id));
+
+  const selectedItems = itemsList;
+  const subtotal = selectedItems.reduce((sum, item) => sum + (item.total || item.price * item.quantity), 0);
   const tax = subtotal * 0.05;
   const total = subtotal + tax;
 
   return (
     <main className="min-h-screen bg-white">
       <Navigation />
+      
+      {/* Loading state for buy-now checkout data */}
+      {checkoutMode === 'buy-now' && loadingCheckoutData && (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-black mb-4"></div>
+            <p className="text-gray-600">Loading checkout details...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Main content - hide while loading buy-now data */}
+      {!(checkoutMode === 'buy-now' && loadingCheckoutData) && (
       <div className="container mx-auto px-4 py-8">
-        {/* Back Navigation */}
-        <Link
-          href="/cart"
-          className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 font-medium transition-colors"
-        >
-          <ArrowLeftIcon className="w-4 h-4" />
-          Back to Cart
-        </Link>
+        {/* Back Navigation - Hide for buy-now mode */}
+        {checkoutMode === 'cart' && (
+          <Link
+            href="/cart"
+            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 font-medium transition-colors"
+          >
+            <ArrowLeftIcon className="w-4 h-4" />
+            Back to Cart
+          </Link>
+        )}
 
         {/* Page Header */}
         <div className="mb-10">
@@ -590,27 +691,37 @@ function CheckoutContent() {
             {/* Product List */}
             <div className="space-y-4 mb-6">
               {selectedItems.map((item) => {
-                const image = item.product.images.find((img: any) => 
-                  (item.size === '30ml' && img.is_50ml === 0) ||
-                  (item.size === '50ml' && img.is_50ml === 1)
-                ) || item.product.images[0];
-                const imageUrl = image?.image_url || '/placeholder.jpg';
+                // Handle buy-now items (have image field directly)
+                const imageUrl = 'image' in item 
+                  ? (item.image || '/images/placeholder.jpg')
+                  : (() => {
+                      const image = item.product?.images?.find((img: any) => 
+                        (item.size === '30ml' && img.is_50ml === 0) ||
+                        (item.size === '50ml' && img.is_50ml === 1)
+                      ) || item.product?.images?.[0];
+                      return image?.image_url || '/placeholder.jpg';
+                    })();
+
+                const itemName = 'name' in item ? item.name : item.product?.name || 'Product';
+                const itemSize = item.size;
+                const itemQty = item.quantity;
+                const itemPrice = 'total' in item ? item.total : (item.price * item.quantity);
 
                 return (
-                  <div key={item.cart_id} className="flex gap-3 pb-4 border-b border-gray-200">
+                  <div key={'product_id' in item ? `buy-now-${item.product_id}` : item.cart_id} className="flex gap-3 pb-4 border-b border-gray-200">
                     <div className="relative w-16 h-16 bg-white rounded-lg overflow-hidden flex-shrink-0">
                       <Image
                         src={imageUrl}
-                        alt={item.product.name}
+                        alt={itemName}
                         fill
                         className="object-cover"
                         unoptimized
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 truncate">{item.product.name}</p>
-                      <p className="text-sm text-gray-600">{item.size} × {item.quantity}</p>
-                      <p className="font-semibold text-gray-900">{formatCurrency(item.total)}</p>
+                      <p className="font-medium text-gray-900 truncate">{itemName}</p>
+                      <p className="text-sm text-gray-600">{itemSize} × {itemQty}</p>
+                      <p className="font-semibold text-gray-900">{formatCurrency(itemPrice)}</p>
                     </div>
                   </div>
                 );
@@ -657,6 +768,7 @@ function CheckoutContent() {
           </div>
         </div>
       </div>
+      )}
       <Footer />
     </main>
   );

@@ -181,10 +181,19 @@ export default function ProductDetailPage() {
     }
 
     try {
-      await addToCart(parseInt(productId), selectedSize, quantity);
-      router.push('/checkout');
+      // Call the buy-now API endpoint to initiate a checkout session
+      const response = await api.post('/buy-now/initiate', {
+        product_id: parseInt(productId),
+        size: selectedSize,
+        quantity: quantity,
+      });
+
+      if (response.data.success) {
+        // Navigate to checkout with buy-now mode
+        router.push('/checkout?mode=buy-now');
+      }
     } catch (error: any) {
-      showToast(error.message || 'Failed to add to cart', 'error');
+      showToast(error.response?.data?.message || 'Failed to initiate checkout', 'error');
     }
   };
 

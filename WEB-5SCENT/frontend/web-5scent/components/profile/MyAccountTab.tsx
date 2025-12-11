@@ -64,16 +64,48 @@ export default function MyAccountTab({ user, onUpdate, onClose }: MyAccountTabPr
     setLoading(true);
 
     try {
+      const trimmedName = formData.name?.trim() || '';
+      const trimmedEmail = formData.email?.trim() || '';
+
+      if (!trimmedName) {
+        showToast('Name field is required', 'error');
+        setLoading(false);
+        return;
+      }
+      
+      if (!trimmedEmail) {
+        showToast('Email field is required', 'error');
+        setLoading(false);
+        return;
+      }
+
       const submitData = new FormData();
-      submitData.append('name', formData.name);
-      submitData.append('email', formData.email);
-      if (formData.phone) submitData.append('phone', formData.phone);
-      if (formData.address_line) submitData.append('address_line', formData.address_line);
-      if (formData.district) submitData.append('district', formData.district);
-      if (formData.city) submitData.append('city', formData.city);
-      if (formData.province) submitData.append('province', formData.province);
-      if (formData.postal_code) submitData.append('postal_code', formData.postal_code);
-      if (profilePicture) submitData.append('profile_pic', profilePicture);
+      submitData.append('name', trimmedName);
+      submitData.append('email', trimmedEmail);
+      
+      // Only append optional fields if they have values
+      // Don't send empty strings to avoid validation issues
+      if (formData.phone && formData.phone.trim()) {
+        submitData.append('phone', formData.phone.trim());
+      }
+      if (formData.address_line && formData.address_line.trim()) {
+        submitData.append('address_line', formData.address_line.trim());
+      }
+      if (formData.district && formData.district.trim()) {
+        submitData.append('district', formData.district.trim());
+      }
+      if (formData.city && formData.city.trim()) {
+        submitData.append('city', formData.city.trim());
+      }
+      if (formData.province && formData.province.trim()) {
+        submitData.append('province', formData.province.trim());
+      }
+      if (formData.postal_code && formData.postal_code.trim()) {
+        submitData.append('postal_code', formData.postal_code.trim());
+      }
+      if (profilePicture) {
+        submitData.append('profile_pic', profilePicture);
+      }
 
       const response = await api.put('/profile', submitData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -83,7 +115,10 @@ export default function MyAccountTab({ user, onUpdate, onClose }: MyAccountTabPr
       showToast('Profile updated successfully', 'success');
       onClose();
     } catch (error: any) {
-      showToast(error.response?.data?.message || 'Failed to update profile', 'error');
+      const errorMessage = error.response?.data?.message || error.response?.data?.errors 
+        ? JSON.stringify(error.response?.data?.errors)
+        : 'Failed to update profile';
+      showToast(errorMessage, 'error');
     } finally {
       setLoading(false);
     }

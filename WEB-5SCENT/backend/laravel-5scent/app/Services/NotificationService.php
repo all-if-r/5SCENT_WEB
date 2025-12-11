@@ -5,22 +5,23 @@ namespace App\Services;
 use App\Models\Notification;
 use App\Models\Order;
 use App\Models\User;
+use App\Helpers\OrderCodeHelper;
 
 class NotificationService
 {
     /**
      * Create a ProfileReminder notification for incomplete profile
+     * This will only create ONCE per user - never recreate even if read
      */
     public static function createProfileReminderNotification($userId)
     {
-        // Check if user already has an unread ProfileReminder notification
+        // Check if user already has a ProfileReminder notification (read or unread)
         $existingNotification = Notification::where('user_id', $userId)
             ->where('notif_type', 'ProfileReminder')
-            ->unread()
             ->first();
 
         if ($existingNotification) {
-            return $existingNotification; // Don't create duplicate
+            return $existingNotification; // Don't create duplicate - reuse existing one
         }
 
         return Notification::create([
@@ -34,8 +35,9 @@ class NotificationService
 
     /**
      * Create a Delivery notification when order is marked as delivered
+     * Allows multiple notifications - each delivery event creates a new notification
      */
-    public static function createDeliveryNotification($orderId)
+    public static function createDeliveryNotification($orderId, $message = null)
     {
         $order = Order::find($orderId);
 
@@ -43,10 +45,12 @@ class NotificationService
             return null;
         }
 
+        $orderCode = OrderCodeHelper::formatOrderCode($order);
+
         return Notification::create([
             'user_id' => $order->user_id,
             'order_id' => $orderId,
-            'message' => "Great news! Your order #{$order->order_id} has been delivered. We'd love to hear your thoughts.",
+            'message' => $message ?? "Your order {$orderCode} has been delivered. We'd love to hear your thoughts.",
             'notif_type' => 'Delivery',
             'is_read' => false,
         ]);
@@ -54,6 +58,7 @@ class NotificationService
 
     /**
      * Create a Payment notification
+     * Allows multiple notifications - each payment event creates a new notification
      */
     public static function createPaymentNotification($orderId, $message = null)
     {
@@ -74,6 +79,7 @@ class NotificationService
 
     /**
      * Create an OrderUpdate notification
+     * Allows multiple notifications - each status change creates a new notification
      */
     public static function createOrderUpdateNotification($orderId, $message = null)
     {
@@ -94,6 +100,7 @@ class NotificationService
 
     /**
      * Create a Refund notification
+     * Allows multiple notifications - each refund event creates a new notification
      */
     public static function createRefundNotification($orderId, $message = null)
     {

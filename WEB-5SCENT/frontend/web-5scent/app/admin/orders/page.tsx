@@ -815,8 +815,8 @@ export default function OrdersPage() {
                   <div className="space-y-3">
                     {selectedOrder.details?.map((item, idx) => {
                       const image = item.product?.images?.find(img => {
-                        const is50ml = img.is_50ml === true || img.is_50ml === 1;
-                        const isAdditional = img.is_additional === true || img.is_additional === 1;
+                        const is50ml = Boolean(img.is_50ml);
+                        const isAdditional = Boolean(img.is_additional);
                         if (isAdditional) return false;
                         if (item.size === '50ml') return is50ml;
                         return !is50ml;

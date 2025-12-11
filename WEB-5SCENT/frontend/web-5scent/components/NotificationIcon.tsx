@@ -21,9 +21,9 @@ export const NotificationIcon: React.FC<NotificationIconProps> = ({ onClick }) =
 
       {/* Unread count badge */}
       {unreadCount > 0 && (
-        <span className="absolute top-0 right-0 flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-black rounded-full">
+        <div className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-black rounded-full">
           {unreadCount > 9 ? '9+' : unreadCount}
-        </span>
+        </div>
       )}
     </button>
   );

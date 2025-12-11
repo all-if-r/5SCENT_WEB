@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Order;
 use Illuminate\Support\Facades\Http;
+use Midtrans\Config;
 
 class MidtransService
 {
@@ -20,6 +21,25 @@ class MidtransService
         $this->baseUrl = $this->isProduction 
             ? 'https://app.midtrans.com' 
             : 'https://app.sandbox.midtrans.com';
+    }
+
+    /**
+     * Static method to configure Midtrans SDK for use with Core API
+     * Must be called before using CoreApi methods
+     * 
+     * Example:
+     * MidtransService::configure();
+     * $response = \Midtrans\CoreApi::charge($payload);
+     */
+    public static function configure(): void
+    {
+        Config::$serverKey = config('midtrans.server_key');
+        Config::$clientKey = config('midtrans.client_key');
+        Config::$isProduction = config('midtrans.is_production', false);
+        Config::$isSanitized = config('midtrans.is_sanitized', true);
+        Config::$is3ds = config('midtrans.is_3ds', true);
+        Config::$curlOptions[CURLOPT_SSL_VERIFYHOST] = 0;
+        Config::$curlOptions[CURLOPT_SSL_VERIFYPEER] = 0;
     }
 
     public function createSnapToken(Order $order)

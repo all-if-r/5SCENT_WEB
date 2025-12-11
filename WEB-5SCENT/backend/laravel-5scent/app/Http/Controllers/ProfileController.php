@@ -15,6 +15,7 @@ class ProfileController extends Controller
         $rules = [
             'name' => 'required|string|max:100',
             'email' => 'required|email|unique:user,email,' . $user->user_id . ',user_id',
+            'phone' => 'nullable|string|max:20',
             'address_line' => 'nullable|string|max:255',
             'district' => 'nullable|string|max:255',
             'city' => 'nullable|string|max:255',
@@ -23,24 +24,9 @@ class ProfileController extends Controller
             'profile_pic' => 'nullable|image|mimes:jpeg,png,jpg',
             'profile_pic_filename' => 'nullable|string|max:500',
         ];
-        
-        // Only validate phone regex if phone is provided and not empty
-        if ($request->has('phone') && $request->filled('phone')) {
-            $rules['phone'] = 'required|string|max:20|regex:/^\+62[0-9]{8,}$/';
-        } else {
-            $rules['phone'] = 'nullable|string|max:20';
-        }
-
-        $messages = [
-            'phone.regex' => 'Phone number must start with +62 and have at least 8 digits after the country code.',
-            'profile_pic.image' => 'The profile picture must be an image file.',
-            'profile_pic.mimes' => 'Only JPG and PNG image files are allowed for profile photos.',
-            'profile_pic_filename.string' => 'The profile picture filename must be a valid string.',
-            'profile_pic_filename.max' => 'The profile picture filename is too long.',
-        ];
 
         try {
-            $validated = $request->validate($rules, $messages);
+            $validated = $request->validate($rules);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'message' => 'Validation failed',
@@ -48,22 +34,27 @@ class ProfileController extends Controller
             ], 422);
         }
 
+        // Phone validation only if provided
+        if ($request->filled('phone')) {
+            $phone = trim($validated['phone'] ?? '');
+            if (!empty($phone) && !preg_match('/^\+62[0-9]{8,}$/', $phone)) {
+                return response()->json([
+                    'message' => 'Phone number must start with +62 and have at least 8 digits after the country code.',
+                    'errors' => ['phone' => ['Phone number must start with +62 and have at least 8 digits after the country code.']]
+                ], 422);
+            }
+        }
+
         $updateData = [
             'name' => $validated['name'],
             'email' => $validated['email'],
+            'phone' => $validated['phone'] ?? null,
         ];
-        
-        // Handle phone - set to null if empty, otherwise use validated value
-        if ($request->has('phone')) {
-            $updateData['phone'] = $request->filled('phone') ? $validated['phone'] : null;
-        }
         
         // Handle nullable fields
         $nullableFields = ['address_line', 'district', 'city', 'province', 'postal_code'];
         foreach ($nullableFields as $field) {
-            if ($request->has($field)) {
-                $updateData[$field] = $request->filled($field) ? $validated[$field] : null;
-            }
+            $updateData[$field] = $validated[$field] ?? null;
         }
 
         // Handle profile picture upload

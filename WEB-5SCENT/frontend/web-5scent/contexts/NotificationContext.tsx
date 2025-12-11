@@ -44,13 +44,28 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const fetchNotifications = useCallback(async () => {
     try {
+      // Check if user is authenticated before fetching
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('admin_token') : null;
+      if (!token) {
+        // User not authenticated, skip notification fetch
+        setNotifications([]);
+        setUnreadCount(0);
+        return;
+      }
+      
       setIsLoading(true);
       const response = await api.get('/notifications');
       if (response.data.success) {
         setNotifications(response.data.notifications);
         setUnreadCount(response.data.unread_count);
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Silently handle 401 errors (user not authenticated)
+      if (error.response?.status === 401) {
+        setNotifications([]);
+        setUnreadCount(0);
+        return;
+      }
       console.error('Error fetching notifications:', error);
     } finally {
       setIsLoading(false);

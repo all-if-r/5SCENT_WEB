@@ -56,6 +56,14 @@ class Order extends Model
         return $this->hasMany(Notification::class, 'order_id', 'order_id');
     }
 
+    /**
+     * Get the payment transaction associated with this order.
+     */
+    public function paymentTransaction()
+    {
+        return $this->hasOne(PaymentTransaction::class, 'order_id', 'order_id');
+    }
+
     public function canBeCancelled()
     {
         return $this->status === 'Packaging';
