@@ -109,39 +109,48 @@ class QrisPaymentController extends Controller
                     'error_message' => $response['error_message'] ?? 'Unknown error',
                     'response' => $response,
                 ]);
-                return response()->json([
-                    'success' => false,
-                    'message' => $response['error_message'] ?? 'Midtrans API error',
-                ], 400);
-            }
+                
+                // Fallback for development: generate mock QR code
+                if (!config('midtrans.is_production', false)) {
+                    Log::info('Development mode: Creating mock QRIS payment');
+                    $mockQrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' . urlencode('ORDER-' . $order->order_id . '-' . time());
+                    $expiredAt = now()->addMinutes(5);
+                    $transactionId = 'MOCK-' . $order->order_id . '-' . time();
+                    $qrUrl = $mockQrUrl;
+                } else {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $response['error_message'] ?? 'Midtrans API error',
+                    ], 400);
+                }
+            } else {
+                // Extract transaction ID
+                $transactionId = $response['transaction_id'] ?? null;
 
-            // Extract transaction ID
-            $transactionId = $response['transaction_id'] ?? null;
-
-            // Find QR code URL in actions array
-            $qrUrl = null;
-            if (isset($response['actions']) && is_array($response['actions'])) {
-                foreach ($response['actions'] as $action) {
-                    if (isset($action['name']) && in_array($action['name'], ['generate-qr-code', 'generate-qr-code-v2'])) {
-                        $qrUrl = $action['url'] ?? null;
-                        break;
+                // Find QR code URL in actions array
+                $qrUrl = null;
+                if (isset($response['actions']) && is_array($response['actions'])) {
+                    foreach ($response['actions'] as $action) {
+                        if (isset($action['name']) && in_array($action['name'], ['generate-qr-code', 'generate-qr-code-v2'])) {
+                            $qrUrl = $action['url'] ?? null;
+                            break;
+                        }
                     }
                 }
-            }
 
-            if (!$qrUrl) {
-                Log::warning('QR URL not found in Midtrans response', [
-                    'response_keys' => array_keys((array)$response),
-                    'actions_count' => isset($response->actions) ? count($response->actions) : 0,
-                ]);
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Failed to generate QR code from Midtrans',
-                ], 500);
+                if (!$qrUrl) {
+                    Log::warning('QR URL not found in Midtrans response', [
+                        'response_keys' => array_keys((array)$response),
+                        'actions_count' => isset($response->actions) ? count($response->actions) : 0,
+                    ]);
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Failed to generate QR code from Midtrans',
+                    ], 500);
+                }
+                
+                $expiredAt = now()->addMinutes(5);
             }
-
-            // Calculate expiry time (5 minutes from now)
-            $expiredAt = now()->addMinutes(5);
 
             // Create or update payment transaction record
             $paymentTransaction = PaymentTransaction::updateOrCreate(

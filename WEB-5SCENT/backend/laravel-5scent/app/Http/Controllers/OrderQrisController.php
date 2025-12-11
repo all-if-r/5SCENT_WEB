@@ -54,10 +54,11 @@ class OrderQrisController extends Controller
             // Get QRIS transaction
             $qrisTransaction = $order->paymentTransaction()->first();
 
+            // If no QRIS transaction exists, return error so client retries
             if (!$qrisTransaction) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'No QRIS payment found for this order',
+                    'message' => 'No QRIS payment found for this order. Please complete the payment process.',
                 ], 404);
             }
 
