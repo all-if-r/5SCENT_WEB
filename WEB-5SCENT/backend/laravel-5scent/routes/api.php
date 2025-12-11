@@ -101,9 +101,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/mark-all-read', [NotificationController::class, 'markAllAsRead']);
     });
 
-    // Payment
-    Route::post('/payments/qris', [QrisPaymentController::class, 'createQrisPayment']);
-
     // Buy Now
     Route::prefix('buy-now')->group(function () {
         Route::post('/initiate', [BuyNowController::class, 'initiateCheckout']);
@@ -148,6 +145,9 @@ Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
         Route::delete('/{id}', [RatingController::class, 'adminDestroy']);
     });
 });
+
+// QRIS Payment (public endpoint - security via order ID validation)
+Route::post('/payments/qris', [QrisPaymentController::class, 'createQrisPayment']);
 
 // Payment webhook (no auth required)
 Route::post('/payments/webhook', [PaymentController::class, 'webhook']);

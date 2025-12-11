@@ -12,6 +12,39 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
+        // Debug logging - show EVERYTHING
+        error_log('[Profile Update] === NEW REQUEST ===');
+        error_log('Content-Type: ' . $request->header('Content-Type'));
+        error_log('Method: ' . $request->method());
+        error_log('User ID: ' . ($user?->user_id ?? 'NOT AUTHENTICATED'));
+        error_log('Has name: ' . ($request->has('name') ? 'YES' : 'NO'));
+        error_log('Has email: ' . ($request->has('email') ? 'YES' : 'NO'));
+        error_log('Name value: "' . ($request->input('name') ?? 'NULL') . '"');
+        error_log('Email value: "' . ($request->input('email') ?? 'NULL') . '"');
+        error_log('All input: ' . json_encode($request->all()));
+        
+        \Log::info('[Profile Update] New request received', [
+            'user_id' => $user?->user_id,
+            'content_type' => $request->header('Content-Type'),
+            'all_input' => $request->all(),
+            'all_files' => $request->allFiles(),
+            'method' => $request->method(),
+            'has_name' => $request->has('name'),
+            'has_email' => $request->has('email'),
+            'raw_name' => $request->input('name'),
+            'raw_email' => $request->input('email'),
+        ]);
+
+        // If user not authenticated
+        if (!$user) {
+            \Log::error('[Profile Update] User not authenticated');
+            error_log('[Profile Update] User not authenticated');
+            return response()->json([
+                'message' => 'Unauthenticated',
+                'errors' => ['auth' => ['You must be logged in']]
+            ], 401);
+        }
+
         $rules = [
             'name' => 'required|string|max:100',
             'email' => 'required|email|unique:user,email,' . $user->user_id . ',user_id',
@@ -25,19 +58,41 @@ class ProfileController extends Controller
             'profile_pic_filename' => 'nullable|string|max:500',
         ];
 
+        error_log('[Profile Update] About to validate with rules: ' . json_encode($rules));
+
         try {
             $validated = $request->validate($rules);
+            error_log('[Profile Update] Validation PASSED successfully');
+            \Log::info('[Profile Update] Validation passed', [
+                'validated_data' => $validated,
+            ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
+            error_log('[Profile Update] Validation CAUGHT EXCEPTION');
+            $errors = $e->errors();
+            error_log('Validation errors: ' . json_encode($errors));
+            \Log::error('[Profile Update] Validation failed', [
+                'errors' => $errors,
+            ]);
+            
             return response()->json([
                 'message' => 'Validation failed',
-                'errors' => $e->errors()
+                'errors' => $errors
             ], 422);
+        } catch (\Exception $e) {
+            error_log('[Profile Update] CAUGHT OTHER EXCEPTION: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'An error occurred: ' . $e->getMessage(),
+                'errors' => []
+            ], 500);
         }
 
         // Phone validation only if provided
         if ($request->filled('phone')) {
             $phone = trim($validated['phone'] ?? '');
             if (!empty($phone) && !preg_match('/^\+62[0-9]{8,}$/', $phone)) {
+                \Log::warning('[Profile Update] Invalid phone format', [
+                    'phone' => $phone,
+                ]);
                 return response()->json([
                     'message' => 'Phone number must start with +62 and have at least 8 digits after the country code.',
                     'errors' => ['phone' => ['Phone number must start with +62 and have at least 8 digits after the country code.']]
@@ -98,6 +153,11 @@ class ProfileController extends Controller
         
         // Refresh the user model to get updated data
         $user->refresh();
+
+        \Log::info('[Profile Update] Update successful', [
+            'user_id' => $user->user_id,
+            'updated_data' => $updateData,
+        ]);
 
         return response()->json($user);
     }

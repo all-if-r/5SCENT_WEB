@@ -162,8 +162,8 @@ export default function ProfilePage() {
     setLoading(true);
     try {
       // Convert the cropped image URL to a File object
-      const response = await fetch(croppedImageUrl);
-      const blob = await response.blob();
+      const fetchResponse = await fetch(croppedImageUrl);
+      const blob = await fetchResponse.blob();
       
       // Validate file type
       if (!blob.type || !['image/jpeg', 'image/jpg', 'image/png'].includes(blob.type.toLowerCase())) {
@@ -214,22 +214,50 @@ export default function ProfilePage() {
       const filename = uploadData.filename;
       
       // Update profile picture in backend immediately - include required fields
-      // Store only the filename in the database, not the full path
-      const submitData = new FormData();
-      submitData.append('profile_pic_filename', filename);
-      submitData.append('name', formData.name);
-      submitData.append('email', formData.email);
-      if (formData.phone) {
-        submitData.append('phone', formData.phone.startsWith('+62') ? formData.phone : `+62${formData.phone}`);
+      // Validate required fields first
+      const trimmedName = formData.name?.trim() || '';
+      const trimmedEmail = formData.email?.trim() || '';
+
+      if (!trimmedName) {
+        showToast('Name field is required', 'error');
+        setLoading(false);
+        setShowCropModal(false);
+        return;
       }
-      if (formData.address_line) submitData.append('address_line', formData.address_line);
-      if (formData.district) submitData.append('district', formData.district);
-      if (formData.city) submitData.append('city', formData.city);
-      if (formData.province) submitData.append('province', formData.province);
-      if (formData.postal_code) submitData.append('postal_code', formData.postal_code);
+
+      if (!trimmedEmail) {
+        showToast('Email field is required', 'error');
+        setLoading(false);
+        setShowCropModal(false);
+        return;
+      }
+
+      // Store only the filename in the database, not the full path
+      const submitData: any = {
+        profile_pic_filename: filename,
+        name: trimmedName,
+        email: trimmedEmail,
+      };
       
-      // Don't set Content-Type header - axios will set it automatically with boundary
-      await api.put('/profile', submitData);
+      if (formData.phone?.trim()) {
+        const phone = formData.phone.trim();
+        submitData.phone = phone.startsWith('+62') ? phone : `+62${phone}`;
+      }
+      if (formData.address_line?.trim()) submitData.address_line = formData.address_line.trim();
+      if (formData.district?.trim()) submitData.district = formData.district.trim();
+      if (formData.city?.trim()) submitData.city = formData.city.trim();
+      if (formData.province?.trim()) submitData.province = formData.province.trim();
+      if (formData.postal_code?.trim()) submitData.postal_code = formData.postal_code.trim();
+      
+      // Debug logging
+      console.log('[Profile Picture Update] Sending JSON data:');
+      console.log('  Data:', submitData);
+      const token = localStorage.getItem('token') || localStorage.getItem('admin_token');
+      console.log('  Token present:', !!token);
+      
+      // Send as JSON
+      const response = await api.put('/profile', submitData);
+      console.log('[Profile Picture Update] Success:', response.data);
       
       // Refresh user data
       const meResponse = await api.get('/me');
@@ -244,7 +272,27 @@ export default function ProfilePage() {
       showToast('Profile picture updated successfully', 'success');
     } catch (error: any) {
       console.error('Error saving profile picture:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to save profile picture';
+      console.error('  Status:', error.response?.status);
+      console.error('  Data:', error.response?.data);
+      
+      let errorMessage = 'Failed to save profile picture';
+      
+      if (error.response?.data?.errors) {
+        // If validation errors exist, format them nicely
+        const errors = error.response.data.errors;
+        const errorList = Object.entries(errors)
+          .map(([key, messages]: [string, any]) => {
+            const msgs = Array.isArray(messages) ? messages : [messages];
+            return `${key}: ${msgs.join(', ')}`;
+          })
+          .join('\n');
+        errorMessage = errorList;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       showToast(errorMessage, 'error');
     } finally {
       setLoading(false);
@@ -255,33 +303,66 @@ export default function ProfilePage() {
   const handleSaveProfile = async () => {
     setLoading(true);
     try {
+      // Trim and validate required fields
+      const trimmedName = formData.name?.trim() || '';
+      const trimmedEmail = formData.email?.trim() || '';
+
+      if (!trimmedName) {
+        showToast('Name field is required', 'error');
+        setLoading(false);
+        return;
+      }
+
+      if (!trimmedEmail) {
+        showToast('Email field is required', 'error');
+        setLoading(false);
+        return;
+      }
+
       // Update profile via backend API (profile picture is already saved when cropped)
-      const submitData = new FormData();
-      submitData.append('name', formData.name);
-      submitData.append('email', formData.email);
+      // Send as JSON, not FormData
+      const submitData: any = {
+        name: trimmedName,
+        email: trimmedEmail,
+      };
       
       // Combine phone number with +62 and validate
-      if (formData.phone && formData.phone.trim()) {
+      // Only include if phone has a value - don't send empty strings
+      if (formData.phone?.trim()) {
         const phoneNumber = formData.phone.replace(/^\+62/, '').replace(/^62/, '').replace(/^0/, '');
         if (phoneNumber.length < 8) {
           showToast('Phone number must have at least 8 digits', 'error');
           setLoading(false);
           return;
         }
-        submitData.append('phone', `+62${phoneNumber}`);
-      } else {
-        submitData.append('phone', '');
+        submitData.phone = `+62${phoneNumber}`;
       }
       
-      submitData.append('address_line', formData.address_line || '');
-      submitData.append('district', formData.district || '');
-      submitData.append('city', formData.city || '');
-      submitData.append('province', formData.province || '');
-      submitData.append('postal_code', formData.postal_code || '');
+      // Only include optional fields if they have values
+      if (formData.address_line?.trim()) {
+        submitData.address_line = formData.address_line.trim();
+      }
+      if (formData.district?.trim()) {
+        submitData.district = formData.district.trim();
+      }
+      if (formData.city?.trim()) {
+        submitData.city = formData.city.trim();
+      }
+      if (formData.province?.trim()) {
+        submitData.province = formData.province.trim();
+      }
+      if (formData.postal_code?.trim()) {
+        submitData.postal_code = formData.postal_code.trim();
+      }
       
-      // Don't send profile_pic_path here since it's already saved when cropped
+      // Debug logging
+      console.log('[Profile Update] Sending JSON data:');
+      console.log('  Data:', submitData);
+      const token = localStorage.getItem('token') || localStorage.getItem('admin_token');
+      console.log('  Token present:', !!token);
 
       const response = await api.put('/profile', submitData);
+      console.log('[Profile Update] Success:', response.data);
 
       // Refresh user data from backend to ensure consistency
       const meResponse = await api.get('/me');
@@ -316,7 +397,33 @@ export default function ProfilePage() {
       setIsEditing(false);
       setProfilePicture(null);
     } catch (error: any) {
-      showToast(error.response?.data?.message || 'Failed to update profile', 'error');
+      console.error('[Profile Update] Error:', error);
+      console.error('  Status:', error.response?.status);
+      console.error('  Data:', error.response?.data);
+      console.error('  Full response:', error.response);
+      
+      let errorMessage = 'Failed to update profile';
+      
+      // Check if we have validation errors
+      if (error.response?.data?.errors && Object.keys(error.response.data.errors).length > 0) {
+        // If validation errors exist, format them nicely
+        const errors = error.response.data.errors;
+        const errorList = Object.entries(errors)
+          .map(([key, messages]: [string, any]) => {
+            const msgs = Array.isArray(messages) ? messages : [messages];
+            return `${key}: ${msgs.join(', ')}`;
+          })
+          .join('\n');
+        errorMessage = errorList;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.status === 422) {
+        errorMessage = 'Validation error: Please check all required fields (name and email are required)';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      showToast(errorMessage, 'error');
     } finally {
       setLoading(false);
     }

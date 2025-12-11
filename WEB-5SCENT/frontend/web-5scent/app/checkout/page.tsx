@@ -241,8 +241,13 @@ function CheckoutContent() {
           order_id: response.data.order_id,
         });
 
-        // Redirect to Midtrans payment page
-        if (paymentResponse.data.redirect_url) {
+        // Check if QRIS payment was created successfully
+        if (paymentResponse.data.success && (paymentResponse.data.qr_url || paymentResponse.data.qris?.qr_url)) {
+          // Navigate to QRIS payment page
+          showToast('QRIS payment created successfully', 'success');
+          router.push(`/orders/${response.data.order_id}/qris`);
+        } else if (paymentResponse.data.redirect_url) {
+          // Fallback for redirect URL
           window.location.href = paymentResponse.data.redirect_url;
         } else if (paymentResponse.data.token) {
           // Check if it's a mock token (for development without Midtrans credentials)

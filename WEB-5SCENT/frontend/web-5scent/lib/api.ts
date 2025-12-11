@@ -60,14 +60,20 @@ api.interceptors.request.use(
       // Not using withCredentials since we're using token-based auth, not cookie-based
     }
     
-    // Only set Content-Type for JSON if data is not FormData
-    // FormData will automatically set the correct multipart/form-data header
-    if (!(config.data instanceof FormData)) {
+    // Check if data is FormData
+    if (config.data instanceof FormData) {
+      // IMPORTANT: For FormData, DELETE Content-Type header so browser sets it with correct boundary
+      delete config.headers['Content-Type'];
+    } else if (!(config.data instanceof FormData)) {
+      // Only set Content-Type for JSON if data is not FormData
       config.headers['Content-Type'] = 'application/json';
     }
     
     const fullUrl = `${config.baseURL}${config.url}`;
     console.log(`[API Request] ${config.method?.toUpperCase()} ${fullUrl}`);
+    if (config.data instanceof FormData) {
+      console.log('[API Request] FormData detected - content-type will be set by browser');
+    }
     return config;
   },
   (error) => {

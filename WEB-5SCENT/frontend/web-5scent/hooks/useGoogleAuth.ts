@@ -144,7 +144,7 @@ export const useGoogleAuth = (
       (window as any).google.accounts.id.renderButton(container, {
         theme: 'outline',
         size: 'large',
-        width: '100%',
+        width: 'wide',
         ...options,
       });
       return true;

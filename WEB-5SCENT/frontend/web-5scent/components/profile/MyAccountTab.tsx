@@ -67,14 +67,23 @@ export default function MyAccountTab({ user, onUpdate, onClose }: MyAccountTabPr
       const trimmedName = formData.name?.trim() || '';
       const trimmedEmail = formData.email?.trim() || '';
 
-      if (!trimmedName) {
+      // Frontend validation
+      if (!trimmedName || trimmedName.length === 0) {
         showToast('Name field is required', 'error');
         setLoading(false);
         return;
       }
       
-      if (!trimmedEmail) {
+      if (!trimmedEmail || trimmedEmail.length === 0) {
         showToast('Email field is required', 'error');
+        setLoading(false);
+        return;
+      }
+
+      // Check if token exists
+      const token = localStorage.getItem('token') || localStorage.getItem('admin_token');
+      if (!token) {
+        showToast('Not authenticated. Please login again.', 'error');
         setLoading(false);
         return;
       }
@@ -85,39 +94,66 @@ export default function MyAccountTab({ user, onUpdate, onClose }: MyAccountTabPr
       
       // Only append optional fields if they have values
       // Don't send empty strings to avoid validation issues
-      if (formData.phone && formData.phone.trim()) {
+      if (formData.phone?.trim()) {
         submitData.append('phone', formData.phone.trim());
       }
-      if (formData.address_line && formData.address_line.trim()) {
+      if (formData.address_line?.trim()) {
         submitData.append('address_line', formData.address_line.trim());
       }
-      if (formData.district && formData.district.trim()) {
+      if (formData.district?.trim()) {
         submitData.append('district', formData.district.trim());
       }
-      if (formData.city && formData.city.trim()) {
+      if (formData.city?.trim()) {
         submitData.append('city', formData.city.trim());
       }
-      if (formData.province && formData.province.trim()) {
+      if (formData.province?.trim()) {
         submitData.append('province', formData.province.trim());
       }
-      if (formData.postal_code && formData.postal_code.trim()) {
+      if (formData.postal_code?.trim()) {
         submitData.append('postal_code', formData.postal_code.trim());
       }
       if (profilePicture) {
         submitData.append('profile_pic', profilePicture);
       }
 
+      // Debug logging
+      console.log('[Profile Update] Sending form data:');
+      console.log('  Name:', trimmedName);
+      console.log('  Email:', trimmedEmail);
+      console.log('  Token present:', !!token);
+      for (let pair of submitData.entries()) {
+        console.log(`  ${pair[0]}:`, pair[1] instanceof File ? `File(${pair[1].name})` : pair[1]);
+      }
+
       const response = await api.put('/profile', submitData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
+      console.log('[Profile Update] Success response:', response.data);
       onUpdate(response.data);
       showToast('Profile updated successfully', 'success');
       onClose();
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.response?.data?.errors 
-        ? JSON.stringify(error.response?.data?.errors)
-        : 'Failed to update profile';
+      console.error('[Profile Update] Error:', error);
+      console.error('  Status:', error.response?.status);
+      console.error('  Data:', error.response?.data);
+      
+      let errorMessage = 'Failed to update profile';
+      
+      if (error.response?.data?.errors) {
+        // If validation errors exist, format them nicely
+        const errors = error.response.data.errors;
+        const errorList = Object.entries(errors)
+          .map(([key, messages]: [string, any]) => {
+            const msgs = Array.isArray(messages) ? messages : [messages];
+            return msgs.join(', ');
+          })
+          .join('\n');
+        errorMessage = errorList;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
       showToast(errorMessage, 'error');
     } finally {
       setLoading(false);

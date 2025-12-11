@@ -38,8 +38,15 @@ class MidtransService
         Config::$isProduction = config('midtrans.is_production', false);
         Config::$isSanitized = config('midtrans.is_sanitized', true);
         Config::$is3ds = config('midtrans.is_3ds', true);
+        
+        // Configure curl options for proper HTTP communication
         Config::$curlOptions[CURLOPT_SSL_VERIFYHOST] = 0;
         Config::$curlOptions[CURLOPT_SSL_VERIFYPEER] = 0;
+        
+        // Ensure we get proper response headers from curl
+        Config::$curlOptions[CURLOPT_RETURNTRANSFER] = true;
+        Config::$curlOptions[CURLOPT_HEADER] = false;
+        Config::$curlOptions[CURLOPT_TIMEOUT] = 30;
     }
 
     public function createSnapToken(Order $order)

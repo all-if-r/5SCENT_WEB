@@ -422,8 +422,27 @@ function OrderHistoryContent() {
   };
 
   const handlePayNow = async (order: OrderData) => {
-    // Redirect to payment page
-    router.push(`/checkout?items=${order.details.map(d => d.order_detail_id).join(',')}}`);
+    try {
+      // Create QRIS payment for the existing order
+      const paymentResponse = await api.post('/payments/qris', {
+        order_id: order.order_id,
+      });
+
+      // Handle both response formats: qr_url or qris.qr_url
+      const hasQrUrl = paymentResponse.data.success && (
+        paymentResponse.data.qr_url || 
+        (paymentResponse.data.qris && paymentResponse.data.qris.qr_url)
+      );
+
+      if (hasQrUrl) {
+        // Navigate directly to QRIS payment page
+        router.push(`/orders/${order.order_id}/qris`);
+      } else {
+        showToast('Failed to create QRIS payment', 'error');
+      }
+    } catch (error: any) {
+      showToast(error.response?.data?.message || 'Failed to initiate payment', 'error');
+    }
   };
 
   const handleCancelOrder = async (order: OrderData) => {
@@ -590,8 +609,10 @@ function OrderHistoryContent() {
                     </div>
                     <button
                       onClick={() => {
-                        navigator.clipboard.writeText(order.tracking_number);
-                        showToast('Tracking number copied!', 'success');
+                        if (order.tracking_number) {
+                          navigator.clipboard.writeText(order.tracking_number);
+                          showToast('Tracking number copied!', 'success');
+                        }
                       }}
                       className="p-2 hover:bg-gray-200 rounded-lg transition"
                       title="Copy tracking number"
