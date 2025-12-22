@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\PaymentTransaction;
+use App\Services\NotificationService;
+use App\Helpers\OrderCodeHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -185,8 +187,18 @@ class MidtransNotificationController extends Controller
                     'order_id' => $order->order_id,
                 ]);
 
-                // Optional: Send success notification
-                // $this->sendPaymentSuccessNotification($order);
+                // Create payment success notification
+                $orderCode = OrderCodeHelper::formatOrderCode($order);
+                NotificationService::createPaymentNotification(
+                    $order->order_id,
+                    "Your payment for order {$orderCode} was successful. Thank you for your purchase."
+                );
+
+                // Create order update notification for packaging status
+                NotificationService::createOrderUpdateNotification(
+                    $order->order_id,
+                    "Your order {$orderCode} is now being packaged. We'll notify you when it ships."
+                );
                 break;
 
             case 'expire':
@@ -199,8 +211,12 @@ class MidtransNotificationController extends Controller
                     'order_id' => $order->order_id,
                 ]);
 
-                // Optional: Send expiry notification
-                // $this->sendPaymentExpiredNotification($order);
+                // Create payment expired notification
+                $orderCode = OrderCodeHelper::formatOrderCode($order);
+                NotificationService::createPaymentNotification(
+                    $order->order_id,
+                    "Your payment for order {$orderCode} has expired. Please create a new payment."
+                );
                 break;
 
             case 'cancel':
@@ -215,8 +231,12 @@ class MidtransNotificationController extends Controller
                     'reason' => $mappedStatus,
                 ]);
 
-                // Optional: Send failure notification
-                // $this->sendPaymentFailedNotification($order);
+                // Create payment failed notification
+                $orderCode = OrderCodeHelper::formatOrderCode($order);
+                NotificationService::createPaymentNotification(
+                    $order->order_id,
+                    "Your payment for order {$orderCode} failed. Please try again or use another payment method."
+                );
                 break;
 
             case 'pending':

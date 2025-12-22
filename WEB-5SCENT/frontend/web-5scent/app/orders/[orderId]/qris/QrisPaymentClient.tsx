@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { useToast } from '@/contexts/ToastContext';
+import { useNotification } from '@/contexts/NotificationContext';
 import { FiHome, FiPackage, FiDownload, FiCheck } from 'react-icons/fi';
 import {
   formatOrderCode,
@@ -68,9 +69,8 @@ export default function QrisPaymentClient({
 }: QrisPaymentClientProps) {
   const router = useRouter();
   const { showToast } = useToast();
-  const [timeRemaining, setTimeRemaining] = useState(
-    getTimeRemaining(qris.expired_at)
-  );
+  const { fetchNotifications } = useNotification();
+  const [timeRemaining, setTimeRemaining] = useState(60000); // Start at 1 minute
   const [isExpired, setIsExpired] = useState(false);
   const [isPaymentSuccessful, setIsPaymentSuccessful] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -79,20 +79,42 @@ export default function QrisPaymentClient({
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   /**
-   * Countdown Logic:
+   * Countdown Logic - REWRITTEN:
+   * - Calculates remaining time fresh on each tick
+   * - Compares current time against server's expired_at timestamp
+   * - Always caps at 1 minute maximum
    * - Updates every 1 second
-   * - Calculates remaining time from qris.expired_at
-   * - Sets isExpired = true when countdown reaches 0
    */
   useEffect(() => {
+    // Set initial time remaining
+    const now = new Date().getTime();
+    const expireTime = new Date(qris.expired_at).getTime();
+    let remaining = Math.max(0, expireTime - now);
+    remaining = Math.min(remaining, 60000); // Cap at 1 minute
+    setTimeRemaining(remaining);
+
+    if (remaining === 0) {
+      setIsExpired(true);
+      return;
+    }
+
+    // Start interval that recalculates time remaining each second
     countdownIntervalRef.current = setInterval(() => {
-      setTimeRemaining((prev) => {
-        const newTime = Math.max(0, prev - 1000);
-        if (newTime === 0) {
-          setIsExpired(true);
+      const now = new Date().getTime();
+      const expireTime = new Date(qris.expired_at).getTime();
+      let remaining = Math.max(0, expireTime - now);
+      
+      // Cap at 1 minute (60000 ms) maximum
+      remaining = Math.min(remaining, 60000);
+      
+      setTimeRemaining(remaining);
+      
+      if (remaining === 0) {
+        setIsExpired(true);
+        if (countdownIntervalRef.current) {
+          clearInterval(countdownIntervalRef.current);
         }
-        return newTime;
-      });
+      }
     }, 1000);
 
     return () => {
@@ -100,7 +122,7 @@ export default function QrisPaymentClient({
         clearInterval(countdownIntervalRef.current);
       }
     };
-  }, []);
+  }, [qris.expired_at]);
 
   /**
    * Polling Logic:
@@ -117,15 +139,44 @@ export default function QrisPaymentClient({
           `/api/orders/${order.order_id}/payment-status`
         );
 
-        if (response.data?.qris_status === 'settlement') {
+        const qrisStatus = response.data?.qris_status;
+
+        if (qrisStatus === 'settlement') {
           setIsPaymentSuccessful(true);
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
           }
+          showToast('Payment successful! Your order is being prepared.', 'success');
+          // Refresh notifications to show the new payment notification
+          fetchNotifications();
           // Auto redirect after 2 seconds
           setTimeout(() => {
             router.push(`/orders/${order.order_id}`);
           }, 2000);
+        } else if (qrisStatus === 'expire') {
+          // Payment expired
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+          }
+          showToast('Payment expired. Please generate a new QR code.', 'error');
+          // Refresh notifications to show the expiry notification
+          fetchNotifications();
+        } else if (qrisStatus === 'cancel') {
+          // Payment cancelled
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+          }
+          showToast('Payment was cancelled. Please try again.', 'error');
+          // Refresh notifications to show the cancellation notification
+          fetchNotifications();
+        } else if (qrisStatus === 'deny') {
+          // Payment denied
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+          }
+          showToast('Payment was denied. Please try another payment method.', 'error');
+          // Refresh notifications to show the denial notification
+          fetchNotifications();
         }
       } catch (error) {
         // Silently handle errors - don't spam toast notifications

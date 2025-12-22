@@ -297,13 +297,20 @@ class OrderController extends Controller
             ], 400);
         }
 
-        $order->update(['status' => 'Cancel']);
+        $order->update(['status' => 'Cancelled']);
 
         // Restore stock
         foreach ($order->details as $detail) {
             $stockField = $detail->size === '30ml' ? 'stock_30ml' : 'stock_50ml';
             $detail->product->increment($stockField, $detail->quantity);
         }
+
+        // Create cancellation notification
+        $orderCode = OrderCodeHelper::formatOrderCode($order);
+        NotificationService::createOrderUpdateNotification(
+            $order->order_id,
+            "Your order {$orderCode} has been cancelled."
+        );
 
         return response()->json(['message' => 'Order cancelled successfully']);
     }
@@ -346,7 +353,28 @@ class OrderController extends Controller
         ]);
 
         if (isset($validated['status'])) {
-            $order->update(['status' => $validated['status']]);
+            $oldStatus = $order->status;
+            $newStatus = $validated['status'];
+
+            // Only create notification if status actually changed
+            if ($oldStatus !== $newStatus) {
+                $order->update(['status' => $newStatus]);
+
+                // Create status change notification
+                $orderCode = OrderCodeHelper::formatOrderCode($order);
+                $statusMessages = [
+                    'Pending' => "Your order {$orderCode} is pending.",
+                    'Packaging' => "Your order {$orderCode} is now being packaged. We'll notify you when it ships.",
+                    'Shipping' => "Your order {$orderCode} has been shipped. Track your package now.",
+                    'Delivered' => "Your order {$orderCode} has been delivered. We'd love to hear your thoughts.",
+                    'Cancelled' => "Your order {$orderCode} has been cancelled.",
+                ];
+
+                NotificationService::createOrderUpdateNotification(
+                    $order->order_id,
+                    $statusMessages[$newStatus] ?? "Your order {$orderCode} status has been updated to {$newStatus}."
+                );
+            }
         }
 
         return response()->json($order->load('details.product.images', 'payment'));

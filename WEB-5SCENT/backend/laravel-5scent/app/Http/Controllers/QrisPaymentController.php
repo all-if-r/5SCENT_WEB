@@ -165,7 +165,7 @@ class QrisPaymentController extends Controller
                 ],
                 'custom_expiry' => [
                     'order_time' => $orderTime,
-                    'expiry_duration' => 5,
+                    'expiry_duration' => 1,
                     'unit' => 'minute',
                 ],
             ];
@@ -263,8 +263,8 @@ class QrisPaymentController extends Controller
             // Extract transaction status from response
             $transactionStatus = $response['transaction_status'] ?? 'pending';
 
-            // Set expiry time
-            $expiredAt = now()->addMinutes(5);
+            // Set expiry time to 1 minute (matching Midtrans custom_expiry setting)
+            $expiredAt = now()->addMinutes(1);
 
             Log::debug('Midtrans response fully processed', [
                 'transaction_id' => $transactionId,

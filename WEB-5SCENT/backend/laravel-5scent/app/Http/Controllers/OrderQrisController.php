@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * OrderQrisController - Handle QRIS payment detail page requests
@@ -235,6 +236,64 @@ class OrderQrisController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to download QR code',
+            ], 500);
+        }
+    }
+
+    /**
+     * Mark QRIS payment as expired (called when frontend timer reaches 0)
+     * Updates both order status and QRIS transaction status
+     */
+    public function markQrisExpired(string $orderId, Request $request): JsonResponse
+    {
+        try {
+            $order = Order::findOrFail($orderId);
+
+            // Update order status to Cancelled
+            $order->update([
+                'status' => 'Cancelled',
+            ]);
+
+            // Update QRIS transaction status to expired using raw query
+            \DB::table('qris_transactions')
+                ->where('order_id', $orderId)
+                ->update([
+                    'status' => 'expired',
+                    'updated_at' => now(),
+                ]);
+
+            // Create expiry notification
+            $orderCode = \App\Helpers\OrderCodeHelper::formatOrderCode($order);
+            \App\Services\NotificationService::createPaymentNotification(
+                $order->order_id,
+                "Your payment for order {$orderCode} has expired. Please create a new payment."
+            );
+
+            \Log::info('QRIS payment marked as expired', [
+                'order_id' => $order->order_id,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'QRIS payment marked as expired',
+                'order_status' => $order->status,
+            ], 200);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        } catch (\Exception $e) {
+            \Log::error('Error marking QRIS as expired', [
+                'order_id' => $orderId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to mark QRIS as expired: ' . $e->getMessage(),
             ], 500);
         }
     }

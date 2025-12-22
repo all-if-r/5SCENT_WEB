@@ -9,6 +9,8 @@ import api from '@/lib/api';
 import Navigation from '@/components/Navigation';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
+import { useNotification } from '@/contexts/NotificationContext';
 
 interface PageProps {
   params: Promise<{ orderId: string }>;
@@ -36,42 +38,69 @@ interface QrisData {
 export default function QrisPage({ params }: PageProps) {
   const router = useRouter();
   const { user } = useAuth();
+  const { showToast } = useToast();
+  const { fetchNotifications } = useNotification();
   const [data, setData] = useState<QrisData | null>(null);
   const [loading, setLoading] = useState(true);
   const [orderId, setOrderId] = useState<string | null>(null);
-  const [countdown, setCountdown] = useState('5:00');
+  const [countdown, setCountdown] = useState('1:00');
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [isExpired, setIsExpired] = useState(false);
 
   // Unwrap params promise
   useEffect(() => {
     params.then((p) => setOrderId(p.orderId));
   }, [params]);
 
-  // Fetch QRIS data
+  // Fetch QRIS data - check expiry based on expired_at timestamp
   useEffect(() => {
     if (!orderId) return;
 
     const fetchData = async () => {
       try {
+        // Fetch existing QRIS payment
         const response = await api.get(`/orders/${orderId}/qris-detail`);
-
-        if (response.data?.success && response.data?.order) {
-          setData(response.data);
+        
+        if (response.data?.success && response.data?.qris) {
+          // Check if QRIS has expired by comparing with server time
+          const expiredAt = new Date(response.data.qris.expired_at).getTime();
+          const now = new Date().getTime();
+          const isExpired = expiredAt <= now;
+          
+          if (isExpired && response.data?.qris?.status !== 'expired') {
+            // Payment expired - mark it as expired in backend
+            try {
+              await api.post(`/orders/${orderId}/qris-expired`);
+            } catch (expireError) {
+              console.error('Failed to mark QRIS as expired:', expireError);
+            }
+            // Show expired state
+            setData(response.data);
+            showToast('Payment has expired. Order has been cancelled.', 'error');
+            fetchNotifications();
+          } else {
+            // QRIS is still valid or already marked expired
+            setData(response.data);
+          }
+          
           setLoading(false);
           return;
         }
       } catch (error) {
-        console.error('Failed to fetch QRIS details, attempting to create new payment:', error);
+        console.error('Failed to fetch QRIS details:', error);
+        // If fetch fails, show error
+        setLoading(false);
+        return;
       }
 
-      // If no QRIS detail found, try to create a new payment
+      // Try to create fresh QRIS only if fetch completely failed
       try {
         const paymentResponse = await api.post(`/payments/qris`, {
           order_id: orderId,
         });
 
         if (paymentResponse.data?.success) {
-          // Now fetch the QRIS details again
+          // Fetch the new QRIS details
           const detailResponse = await api.get(`/orders/${orderId}/qris-detail`);
           if (detailResponse.data?.success) {
             setData(detailResponse.data);
@@ -80,33 +109,13 @@ export default function QrisPage({ params }: PageProps) {
           }
         }
       } catch (paymentError) {
-        console.error('Failed to create QRIS payment:', paymentError);
+        console.error('Failed to create fresh QRIS payment:', paymentError);
+        setLoading(false);
       }
-
-      // Final fallback: create mock data if everything fails
-      setData({
-        order: {
-          order_id: parseInt(orderId),
-          customer_name: user?.name || 'Customer',
-          total_items: 1,
-          total_price: 75000,
-          user_id: user?.user_id,
-        },
-        payment: {
-          amount: 75000,
-          status: 'Pending',
-        },
-        qris: {
-          qr_url: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=ORDER-${orderId}-${Date.now()}`,
-          status: 'pending',
-          expired_at: new Date(Date.now() + 5 * 60000).toISOString(),
-        },
-      });
-      setLoading(false);
     };
 
     fetchData();
-  }, [orderId, user]);
+  }, [orderId]);
 
   // Countdown timer
   useEffect(() => {
@@ -120,9 +129,11 @@ export default function QrisPage({ params }: PageProps) {
 
       if (difference <= 0) {
         setCountdown('0:00');
+        setIsExpired(true);
         return true; // Timer expired
       }
 
+      setIsExpired(false);
       const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((difference % (1000 * 60)) / 1000);
       setCountdown(`${minutes}:${seconds.toString().padStart(2, '0')}`);
@@ -130,8 +141,8 @@ export default function QrisPage({ params }: PageProps) {
     };
 
     // Set initial countdown immediately
-    const isExpired = calculateCountdown();
-    if (isExpired) return;
+    const expired = calculateCountdown();
+    if (expired) return;
 
     // Update countdown every second
     const interval = setInterval(() => {
@@ -141,10 +152,12 @@ export default function QrisPage({ params }: PageProps) {
 
       if (difference <= 0) {
         setCountdown('0:00');
+        setIsExpired(true);
         clearInterval(interval);
         return;
       }
 
+      setIsExpired(false);
       const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((difference % (1000 * 60)) / 1000);
 
@@ -165,6 +178,9 @@ export default function QrisPage({ params }: PageProps) {
         if (response.data?.payment_status === 'Success' || response.data?.qris_status === 'settlement') {
           setPaymentSuccess(true);
           clearInterval(pollInterval);
+          showToast('Payment successful! Your order is being prepared.', 'success');
+          // Refresh notifications to show the new payment notification
+          fetchNotifications();
         }
       } catch (error) {
         // Silently fail on polling errors
@@ -172,7 +188,7 @@ export default function QrisPage({ params }: PageProps) {
     }, 5000);
 
     return () => clearInterval(pollInterval);
-  }, [orderId]);
+  }, [orderId, showToast]);
 
   if (loading) {
     return (
@@ -225,7 +241,13 @@ export default function QrisPage({ params }: PageProps) {
 
             <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 mb-8 text-center">
               <p className="text-emerald-900 font-medium">
-                Order #{data.order.order_id} will be processed shortly.
+                {(() => {
+                  const day = String(new Date(data.order.created_at).getDate()).padStart(2, '0');
+                  const month = String(new Date(data.order.created_at).getMonth() + 1).padStart(2, '0');
+                  const year = new Date(data.order.created_at).getFullYear();
+                  const id = String(data.order.order_id).padStart(3, '0');
+                  return `#ORD-${day}-${month}-${year}-${id} will be processed shortly.`;
+                })()}
               </p>
             </div>
 
@@ -273,6 +295,60 @@ export default function QrisPage({ params }: PageProps) {
     );
   }
 
+  // Check if payment is expired
+  const expiredAt = new Date(data.qris.expired_at).getTime();
+  const now = new Date().getTime();
+  const isPaymentExpired = expiredAt <= now || data.qris.status === 'expired';
+
+  if (isPaymentExpired) {
+    return (
+      <div className="min-h-screen bg-white">
+        <Navigation />
+        <div className="py-12 px-4">
+          <div className="max-w-2xl mx-auto text-center">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-red-600" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+              </svg>
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Payment Expired</h1>
+            <p className="text-gray-600 mb-8">Your payment request has expired. The order has been cancelled.</p>
+            
+            <div className="bg-red-50 border border-red-200 rounded-xl p-6 mb-8">
+              <p className="text-red-900 font-medium">
+                {(() => {
+                  const day = String(new Date(data.order.created_at).getDate()).padStart(2, '0');
+                  const month = String(new Date(data.order.created_at).getMonth() + 1).padStart(2, '0');
+                  const year = new Date(data.order.created_at).getFullYear();
+                  const id = String(data.order.order_id).padStart(3, '0');
+                  return `Order #ORD-${day}-${month}-${year}-${id} has been cancelled.`;
+                })()}
+              </p>
+            </div>
+
+            <div className="flex gap-3 justify-center flex-wrap">
+              <button
+                onClick={() => router.push('/orders')}
+                className="flex items-center gap-2 px-6 py-2.5 bg-white border border-gray-300 rounded-full font-medium text-gray-800 hover:bg-gray-50 transition"
+              >
+                <FiPackage className="w-4 h-4" />
+                Back to Orders
+              </button>
+              <button
+                onClick={() => router.push('/')}
+                className="flex items-center gap-2 px-6 py-2.5 bg-black text-white rounded-full font-medium hover:bg-gray-900 transition"
+              >
+                <BiHomeAlt className="w-4 h-4" />
+                Back to Homepage
+              </button>
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-white">
       <Navigation />
@@ -292,21 +368,32 @@ export default function QrisPage({ params }: PageProps) {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 mb-6">
             {/* QR Code Section */}
             <div className="text-center mb-8">
-              <div className="inline-block bg-white p-6 rounded-lg border border-gray-200 mb-4">
+              <div className={`inline-block bg-white p-6 rounded-lg border ${isExpired ? 'border-red-300' : 'border-gray-200'} mb-4`}>
                 <img
                   src={data.qris.qr_url}
                   alt="QRIS Payment QR Code"
                   width={240}
                   height={240}
-                  className="rounded-lg"
+                  className={`rounded-lg ${isExpired ? 'blur-md' : ''}`}
                 />
               </div>
               <p className="text-gray-600 text-xs md:text-sm mb-3">Scan this QR code with any QRIS-enabled payment app</p>
-              <div className="flex items-center justify-center gap-2 text-emerald-600 text-xs">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-                </svg>
-                Payment expires in {countdown}
+              <div className={`flex items-center justify-center gap-2 ${isExpired ? 'text-red-600' : 'text-emerald-600'} text-xs`}>
+                {isExpired ? (
+                  <>
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" />
+                    </svg>
+                    Payment Expired
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                    </svg>
+                    Payment expires in {countdown}
+                  </>
+                )}
               </div>
             </div>
 

@@ -88,6 +88,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{orderId}/qris-detail', [OrderQrisController::class, 'getQrisDetail']);
         Route::get('/{orderId}/payment-status', [OrderQrisController::class, 'getPaymentStatus']);
         Route::get('/{orderId}/qris-download', [OrderQrisController::class, 'downloadQrisCode']);
+        Route::post('/{orderId}/qris-expired', [OrderQrisController::class, 'markQrisExpired']);
     });
 
     // Ratings
