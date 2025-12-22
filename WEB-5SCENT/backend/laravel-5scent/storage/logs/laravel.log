@@ -6074,3 +6074,59 @@ mysqldump: Got error: 1156: \"Plugin caching_sha2_password could not be loaded: 
 [2025-12-23 01:59:47] local.INFO: Deleted image file {"path":"C:\\Users\\alifr\\Documents\\COOLYEAH TELKOM\\SEMESTER 5\\5SCENT_1\\5SCENT_WEB\\WEB-5SCENT\\backend\\laravel-5scent\\../../frontend/web-5scent/public/products/additional-CHEAPYFUM-1.jpeg"} 
 [2025-12-23 01:59:47] local.INFO: Deleted image file {"path":"C:\\Users\\alifr\\Documents\\COOLYEAH TELKOM\\SEMESTER 5\\5SCENT_1\\5SCENT_WEB\\WEB-5SCENT\\backend\\laravel-5scent\\../../frontend/web-5scent/public/products/additional-CHEAPYFUM-2.jpg"} 
 [2025-12-23 01:59:47] local.ERROR: Error deleting product {"product_id":"17","error":"SQLSTATE[23000]: Integrity constraint violation: 1451 Cannot delete or update a parent row: a foreign key constraint fails (`db_5scent`.`orderdetail`, CONSTRAINT `orderdetail_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `product` (`product_id`)) (Connection: mysql, SQL: delete from `product` where `product_id` = 17)"} 
+[2025-12-23 02:09:02] local.INFO: === UPDATE REQUEST START === {"product_id":"17","product_name":"CHEAPYFUM"} 
+[2025-12-23 02:09:02] local.INFO: Validation passed {"has_stock_30ml":true,"has_stock_50ml":true,"stock_30ml_value":"49","stock_50ml_value":"48"} 
+[2025-12-23 02:09:02] local.INFO: Product fields updated {"product_id":17,"stock_30ml":"49","stock_50ml":"48"} 
+[2025-12-23 02:09:02] local.INFO: Processing slot 1 {"has_file":true,"filename":"095c09b9becccde7257d125f7e84b2b0.jpg","size":43581} 
+[2025-12-23 02:09:02] local.INFO: Generated filename for slot 1 {"filename":"CHEAPYFUM-50ml.jpg"} 
+[2025-12-23 02:09:02] local.INFO: Moved image file {"destination":"C:\\Users\\alifr\\Documents\\COOLYEAH TELKOM\\SEMESTER 5\\5SCENT_1\\5SCENT_WEB\\WEB-5SCENT\\backend\\laravel-5scent\\../../frontend/web-5scent/public/products/CHEAPYFUM-50ml.jpg"} 
+[2025-12-23 02:09:02] local.INFO: findSlotImage for slot 1 {"product_id":17,"is_50ml":1,"is_additional":0,"total_images_found":1} 
+[2025-12-23 02:09:02] local.INFO: Deleted old image file {"path":"C:\\Users\\alifr\\Documents\\COOLYEAH TELKOM\\SEMESTER 5\\5SCENT_1\\5SCENT_WEB\\WEB-5SCENT\\backend\\laravel-5scent\\../../frontend/web-5scent/public/products/CHEAPYFUM-50ml.jpg"} 
+[2025-12-23 02:09:02] local.INFO: Updated ProductImage {"image_id":136,"product_id":17,"image_url":"/products/CHEAPYFUM-50ml.jpg","slot":1} 
+[2025-12-23 02:09:02] local.INFO: Processing slot 2 {"has_file":true,"filename":"hsh model parfume.jpg","size":7308} 
+[2025-12-23 02:09:02] local.INFO: Generated filename for slot 2 {"filename":"CHEAPYFUM-30ml.jpg"} 
+[2025-12-23 02:09:02] local.INFO: Moved image file {"destination":"C:\\Users\\alifr\\Documents\\COOLYEAH TELKOM\\SEMESTER 5\\5SCENT_1\\5SCENT_WEB\\WEB-5SCENT\\backend\\laravel-5scent\\../../frontend/web-5scent/public/products/CHEAPYFUM-30ml.jpg"} 
+[2025-12-23 02:09:02] local.INFO: findSlotImage for slot 2 {"product_id":17,"is_50ml":0,"is_additional":0,"total_images_found":1} 
+[2025-12-23 02:09:02] local.INFO: Deleted old image file {"path":"C:\\Users\\alifr\\Documents\\COOLYEAH TELKOM\\SEMESTER 5\\5SCENT_1\\5SCENT_WEB\\WEB-5SCENT\\backend\\laravel-5scent\\../../frontend/web-5scent/public/products/CHEAPYFUM-30ml.jpg"} 
+[2025-12-23 02:09:02] local.INFO: Updated ProductImage {"image_id":137,"product_id":17,"image_url":"/products/CHEAPYFUM-30ml.jpg","slot":2} 
+[2025-12-23 02:09:02] local.INFO: Processing slot 3 {"has_file":true,"filename":"images_7sw91t3M_Y36XP4.jpg","size":181992} 
+[2025-12-23 02:09:02] local.INFO: Generated filename for slot 3 {"filename":"additional-CHEAPYFUM-1.jpg"} 
+[2025-12-23 02:09:02] local.INFO: Moved image file {"destination":"C:\\Users\\alifr\\Documents\\COOLYEAH TELKOM\\SEMESTER 5\\5SCENT_1\\5SCENT_WEB\\WEB-5SCENT\\backend\\laravel-5scent\\../../frontend/web-5scent/public/products/additional-CHEAPYFUM-1.jpg"} 
+[2025-12-23 02:09:02] local.INFO: findSlotImage for slot 3 {"product_id":17,"is_50ml":0,"is_additional":1,"total_images_found":2} 
+[2025-12-23 02:09:02] local.INFO: Checking additional image {"image_url":"/products/additional-CHEAPYFUM-1.jpeg","file_suffix":1,"matched_slot":3,"target_slot":3} 
+[2025-12-23 02:09:02] local.INFO: Updated ProductImage {"image_id":138,"product_id":17,"image_url":"/products/additional-CHEAPYFUM-1.jpg","slot":3} 
+[2025-12-23 02:09:02] local.INFO: Processing slot 4 {"has_file":true,"filename":"Screen-Shot-2019-02-02-at-12.10.45-pm-e1549089451355.png","size":302762} 
+[2025-12-23 02:09:02] local.INFO: Generated filename for slot 4 {"filename":"additional-CHEAPYFUM-2.png"} 
+[2025-12-23 02:09:02] local.INFO: Moved image file {"destination":"C:\\Users\\alifr\\Documents\\COOLYEAH TELKOM\\SEMESTER 5\\5SCENT_1\\5SCENT_WEB\\WEB-5SCENT\\backend\\laravel-5scent\\../../frontend/web-5scent/public/products/additional-CHEAPYFUM-2.png"} 
+[2025-12-23 02:09:02] local.INFO: findSlotImage for slot 4 {"product_id":17,"is_50ml":0,"is_additional":1,"total_images_found":2} 
+[2025-12-23 02:09:02] local.INFO: Checking additional image {"image_url":"/products/additional-CHEAPYFUM-1.jpg","file_suffix":1,"matched_slot":3,"target_slot":4} 
+[2025-12-23 02:09:02] local.INFO: Checking additional image {"image_url":"/products/additional-CHEAPYFUM-2.jpg","file_suffix":2,"matched_slot":4,"target_slot":4} 
+[2025-12-23 02:09:02] local.INFO: Updated ProductImage {"image_id":139,"product_id":17,"image_url":"/products/additional-CHEAPYFUM-2.png","slot":4} 
+[2025-12-23 02:09:02] local.INFO: === UPDATE REQUEST COMPLETE === {"product_id":17,"stock_30ml_final":49,"stock_50ml_final":48,"images_count":4} 
+[2025-12-23 02:12:47] local.INFO: Deleted image file {"path":"C:\\Users\\alifr\\Documents\\COOLYEAH TELKOM\\SEMESTER 5\\5SCENT_1\\5SCENT_WEB\\WEB-5SCENT\\backend\\laravel-5scent\\../../frontend/web-5scent/public/products/EXample-50ml.jpg"} 
+[2025-12-23 02:12:47] local.INFO: Deleted image file {"path":"C:\\Users\\alifr\\Documents\\COOLYEAH TELKOM\\SEMESTER 5\\5SCENT_1\\5SCENT_WEB\\WEB-5SCENT\\backend\\laravel-5scent\\../../frontend/web-5scent/public/products/EXample-30ml.jpg"} 
+[2025-12-23 02:12:47] local.INFO: Deleted image file {"path":"C:\\Users\\alifr\\Documents\\COOLYEAH TELKOM\\SEMESTER 5\\5SCENT_1\\5SCENT_WEB\\WEB-5SCENT\\backend\\laravel-5scent\\../../frontend/web-5scent/public/products/additional-EXample-1.jpg"} 
+[2025-12-23 02:12:47] local.INFO: Deleted image file {"path":"C:\\Users\\alifr\\Documents\\COOLYEAH TELKOM\\SEMESTER 5\\5SCENT_1\\5SCENT_WEB\\WEB-5SCENT\\backend\\laravel-5scent\\../../frontend/web-5scent/public/products/additional-EXample-2.jpg"} 
+[2025-12-23 02:12:47] local.INFO: Product deleted successfully {"product_id":"18"} 
+[2025-12-23 02:13:33] local.INFO: === UPDATE REQUEST START === {"product_id":"17","product_name":"CHEAPYFUM"} 
+[2025-12-23 02:13:33] local.INFO: Validation passed {"has_stock_30ml":true,"has_stock_50ml":true,"stock_30ml_value":"1","stock_50ml_value":"0"} 
+[2025-12-23 02:13:33] local.INFO: Product fields updated {"product_id":17,"stock_30ml":"1","stock_50ml":"0"} 
+[2025-12-23 02:13:33] local.INFO: === UPDATE REQUEST COMPLETE === {"product_id":17,"stock_30ml_final":1,"stock_50ml_final":0,"images_count":4} 
+[2025-12-23 02:13:54] local.INFO: === UPDATE REQUEST START === {"product_id":"17","product_name":"CHEAPYFUM"} 
+[2025-12-23 02:13:54] local.INFO: Validation passed {"has_stock_30ml":true,"has_stock_50ml":true,"stock_30ml_value":"1","stock_50ml_value":"0"} 
+[2025-12-23 02:13:54] local.INFO: Product fields updated {"product_id":17,"stock_30ml":"1","stock_50ml":"0"} 
+[2025-12-23 02:13:54] local.INFO: Processing slot 1 {"has_file":true,"filename":"cab355a76e823be9a06c666525858c00.jpg","size":12237} 
+[2025-12-23 02:13:54] local.INFO: Generated filename for slot 1 {"filename":"CHEAPYFUM-50ml.jpg"} 
+[2025-12-23 02:13:54] local.INFO: Moved image file {"destination":"C:\\Users\\alifr\\Documents\\COOLYEAH TELKOM\\SEMESTER 5\\5SCENT_1\\5SCENT_WEB\\WEB-5SCENT\\backend\\laravel-5scent\\../../frontend/web-5scent/public/products/CHEAPYFUM-50ml.jpg"} 
+[2025-12-23 02:13:54] local.INFO: findSlotImage for slot 1 {"product_id":17,"is_50ml":1,"is_additional":0,"total_images_found":0} 
+[2025-12-23 02:13:54] local.INFO: Created ProductImage {"image_id":144,"product_id":17,"image_url":"/products/CHEAPYFUM-50ml.jpg","slot":1} 
+[2025-12-23 02:13:54] local.INFO: Processing slot 2 {"has_file":true,"filename":"ryan_2.png","size":2351803} 
+[2025-12-23 02:13:54] local.INFO: Generated filename for slot 2 {"filename":"CHEAPYFUM-30ml.png"} 
+[2025-12-23 02:13:54] local.INFO: Moved image file {"destination":"C:\\Users\\alifr\\Documents\\COOLYEAH TELKOM\\SEMESTER 5\\5SCENT_1\\5SCENT_WEB\\WEB-5SCENT\\backend\\laravel-5scent\\../../frontend/web-5scent/public/products/CHEAPYFUM-30ml.png"} 
+[2025-12-23 02:13:54] local.INFO: findSlotImage for slot 2 {"product_id":17,"is_50ml":0,"is_additional":0,"total_images_found":0} 
+[2025-12-23 02:13:54] local.INFO: Created ProductImage {"image_id":145,"product_id":17,"image_url":"/products/CHEAPYFUM-30ml.png","slot":2} 
+[2025-12-23 02:13:54] local.INFO: === UPDATE REQUEST COMPLETE === {"product_id":17,"stock_30ml_final":1,"stock_50ml_final":0,"images_count":4} 
+[2025-12-23 02:14:12] local.INFO: === UPDATE REQUEST START === {"product_id":"17","product_name":"CHEAPYFUM"} 
+[2025-12-23 02:14:12] local.INFO: Validation passed {"has_stock_30ml":true,"has_stock_50ml":true,"stock_30ml_value":"0","stock_50ml_value":"0"} 
+[2025-12-23 02:14:12] local.INFO: Product fields updated {"product_id":17,"stock_30ml":"0","stock_50ml":"0"} 
+[2025-12-23 02:14:12] local.INFO: === UPDATE REQUEST COMPLETE === {"product_id":17,"stock_30ml_final":0,"stock_50ml_final":0,"images_count":4} 

@@ -445,6 +445,26 @@ class ProductController extends Controller
         try {
             $product = Product::findOrFail($id);
             
+            // Check for dependencies that would prevent deletion
+            $cartCount = $product->cartItems()->count();
+            $wishlistCount = $product->wishlistItems()->count();
+            $orderDetailCount = $product->orderDetails()->count();
+            $ratingCount = $product->ratings()->count();
+            $posItemCount = $product->posItems()->count();
+            
+            if ($cartCount > 0 || $wishlistCount > 0 || $orderDetailCount > 0 || $ratingCount > 0 || $posItemCount > 0) {
+                return response()->json([
+                    'message' => 'Cannot delete product because it has related records',
+                    'details' => [
+                        'cart_items' => $cartCount,
+                        'wishlist_items' => $wishlistCount,
+                        'order_details' => $orderDetailCount,
+                        'ratings' => $ratingCount,
+                        'pos_items' => $posItemCount
+                    ]
+                ], 409); // Conflict status code
+            }
+            
             // Delete all associated images from filesystem
             $frontendProductsPath = base_path('../../frontend/web-5scent/public/products');
             foreach ($product->images as $image) {

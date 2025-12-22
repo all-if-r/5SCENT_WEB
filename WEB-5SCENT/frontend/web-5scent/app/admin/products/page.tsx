@@ -467,9 +467,25 @@ export default function ProductsPage() {
       setProducts(products.filter((p) => p.product_id !== productId));
       setDeleteConfirm(null);
       showToast(`"${productName}" deleted successfully!`, 'success');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting product:', error);
-      showToast('Failed to delete product', 'error');
+      
+      // Handle 409 Conflict - product has related records
+      if (error.response?.status === 409) {
+        const details = error.response?.data?.details;
+        let message = 'Cannot delete this product because it is linked to:';
+        
+        if (details?.cart_items > 0) message += `\n• ${details.cart_items} cart item(s)`;
+        if (details?.wishlist_items > 0) message += `\n• ${details.wishlist_items} wishlist item(s)`;
+        if (details?.order_details > 0) message += `\n• ${details.order_details} order(s)`;
+        if (details?.ratings > 0) message += `\n• ${details.ratings} rating(s)`;
+        if (details?.pos_items > 0) message += `\n• ${details.pos_items} POS record(s)`;
+        
+        message += '\n\nRemove these references first before deleting the product.';
+        showToast(message, 'error');
+      } else {
+        showToast('Failed to delete product', 'error');
+      }
     }
   };
 
