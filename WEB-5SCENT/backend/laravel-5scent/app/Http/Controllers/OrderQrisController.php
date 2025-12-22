@@ -327,31 +327,64 @@ class OrderQrisController extends Controller
             $order = Order::findOrFail($orderId);
 
             // Update order status to Cancelled
-            $order->update([
-                'status' => 'Cancelled',
-            ]);
+            try {
+                $order->update([
+                    'status' => 'Cancelled',
+                ]);
+            } catch (\Exception $e) {
+                \Log::error('Error updating order status', [
+                    'order_id' => $orderId,
+                    'error' => $e->getMessage(),
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to update order status',
+                ], 500);
+            }
 
             // Update payment status to Expired
-            $payment = \App\Models\Payment::where('order_id', $orderId)->first();
-            if ($payment) {
-                $payment->update(['status' => 'Failed']);
+            try {
+                $payment = \App\Models\Payment::where('order_id', $orderId)->first();
+                if ($payment) {
+                    $payment->update(['status' => 'Failed']);
+                }
+            } catch (\Exception $e) {
+                \Log::error('Error updating payment status', [
+                    'order_id' => $orderId,
+                    'error' => $e->getMessage(),
+                ]);
             }
 
             // Update QRIS transaction status to expired using raw query
-            \DB::table('qris_transactions')
-                ->where('order_id', $orderId)
-                ->update([
-                    'status' => 'expired',
-                    'updated_at' => now(),
+            try {
+                \DB::table('qris_transactions')
+                    ->where('order_id', $orderId)
+                    ->update([
+                        'status' => 'expired',
+                        'updated_at' => now(),
+                    ]);
+            } catch (\Exception $e) {
+                \Log::error('Error updating QRIS transaction', [
+                    'order_id' => $orderId,
+                    'error' => $e->getMessage(),
                 ]);
+            }
 
             // Create expiry notification
-            $orderCode = \App\Helpers\OrderCodeHelper::formatOrderCode($order);
-            \App\Services\NotificationService::createPaymentNotification(
-                $order->user_id,
-                $order->order_id,
-                "Your payment for order {$orderCode} has expired. Please create a new payment."
-            );
+            try {
+                $orderCode = \App\Helpers\OrderCodeHelper::formatOrderCode($order);
+                \App\Services\NotificationService::createPaymentNotification(
+                    $order->user_id ?? $order->order_id,
+                    $order->order_id,
+                    "Your payment for order {$orderCode} has expired. Please create a new payment."
+                );
+            } catch (\Exception $e) {
+                \Log::error('Error creating notification', [
+                    'order_id' => $order->order_id,
+                    'error' => $e->getMessage(),
+                ]);
+                // Continue without notification
+            }
 
             \Log::info('QRIS payment marked as expired', [
                 'order_id' => $order->order_id,

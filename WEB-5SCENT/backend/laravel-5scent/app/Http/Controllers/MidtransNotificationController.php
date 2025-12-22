@@ -190,6 +190,7 @@ class MidtransNotificationController extends Controller
                 // Create payment success notification
                 $orderCode = OrderCodeHelper::formatOrderCode($order);
                 NotificationService::createPaymentNotification(
+                    $order->user_id ?? $order->order_id,
                     $order->order_id,
                     "Your payment for order {$orderCode} was successful. Thank you for your purchase."
                 );
@@ -214,6 +215,7 @@ class MidtransNotificationController extends Controller
                 // Create payment expired notification
                 $orderCode = OrderCodeHelper::formatOrderCode($order);
                 NotificationService::createPaymentNotification(
+                    $order->user_id ?? $order->order_id,
                     $order->order_id,
                     "Your payment for order {$orderCode} has expired. Please create a new payment."
                 );
@@ -234,6 +236,7 @@ class MidtransNotificationController extends Controller
                 // Create payment failed notification
                 $orderCode = OrderCodeHelper::formatOrderCode($order);
                 NotificationService::createPaymentNotification(
+                    $order->user_id ?? $order->order_id,
                     $order->order_id,
                     "Your payment for order {$orderCode} failed. Please try again or use another payment method."
                 );
