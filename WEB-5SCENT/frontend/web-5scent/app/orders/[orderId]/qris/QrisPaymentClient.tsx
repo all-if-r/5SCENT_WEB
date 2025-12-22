@@ -172,6 +172,10 @@ export default function QrisPaymentClient({
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
           }
+          // Mark payment as expired on backend if not already done
+          axios.post(`/api/orders/${order.order_id}/qris-expired`).catch(error => {
+            console.error('Error marking QRIS as expired:', error);
+          });
           setIsExpired(true);
           showToast('Payment expired. Please go back and create a new order.', 'error');
           // Refresh notifications to show the expiry notification

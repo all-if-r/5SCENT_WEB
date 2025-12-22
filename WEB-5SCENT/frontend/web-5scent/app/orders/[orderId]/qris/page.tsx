@@ -127,6 +127,10 @@ export default function QrisPage({ params }: PageProps) {
       if (difference <= 0) {
         setCountdown('0:00');
         setIsExpired(true);
+        // Mark payment as expired on backend
+        api.post(`/orders/${orderId}/qris-expired`).catch(error => {
+          console.error('Error marking QRIS as expired:', error);
+        });
         // Refresh notifications when payment expires
         fetchNotifications();
         return true; // Timer expired
@@ -158,6 +162,10 @@ export default function QrisPage({ params }: PageProps) {
         setCountdown('0:00');
         setIsExpired(true);
         clearInterval(interval);
+        // Mark payment as expired on backend
+        api.post(`/orders/${orderId}/qris-expired`).catch(error => {
+          console.error('Error marking QRIS as expired:', error);
+        });
         return;
       }
 

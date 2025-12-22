@@ -76,26 +76,28 @@ class ExpireQrisTransactions extends Command
 
                     // Get the related order
                     $order = Order::find($transaction->order_id);
-                    if ($order && $order->status === 'Pending') {
-                        // Cancel the order if it's still pending
-                        $order->update(['status' => 'Cancelled']);
-
-                        // Update the payment status to expired
+                    if ($order) {
+                        // Always update payment status to Failed when QRIS expires
                         $payment = \App\Models\Payment::where('order_id', $transaction->order_id)->first();
-                        if ($payment) {
-                            $payment->update(['status' => 'Expired']);
+                        if ($payment && $payment->status === 'Pending') {
+                            $payment->update(['status' => 'Failed']);
                         }
 
-                        // Create expiry notification
-                        $orderCode = OrderCodeHelper::formatOrderCode($order);
-                        
-                        // Check if notification already exists for this transition
-                        NotificationService::createPaymentNotification(
-                            $order->user_id ?? $order->order_id,
-                            $order->order_id,
-                            "Payment for order {$orderCode} has expired.",
-                            'Payment'
-                        );
+                        if ($order->status === 'Pending') {
+                            // Cancel the order if it's still pending
+                            $order->update(['status' => 'Cancelled']);
+
+                            // Create expiry notification
+                            $orderCode = OrderCodeHelper::formatOrderCode($order);
+                            
+                            // Check if notification already exists for this transition
+                            NotificationService::createPaymentNotification(
+                                $order->user_id ?? $order->order_id,
+                                $order->order_id,
+                                "Payment for order {$orderCode} has expired.",
+                                'Payment'
+                            );
+                        }
                     }
 
                     Log::info('QRIS transaction expired', [

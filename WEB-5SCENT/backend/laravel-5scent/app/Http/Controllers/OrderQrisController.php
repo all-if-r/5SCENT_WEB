@@ -334,7 +334,7 @@ class OrderQrisController extends Controller
             // Update payment status to Expired
             $payment = \App\Models\Payment::where('order_id', $orderId)->first();
             if ($payment) {
-                $payment->update(['status' => 'Expired']);
+                $payment->update(['status' => 'Failed']);
             }
 
             // Update QRIS transaction status to expired using raw query
