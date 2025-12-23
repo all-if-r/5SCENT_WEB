@@ -34,19 +34,19 @@ export default function ProfilePopup({ onClose }: ProfilePopupProps) {
 
   if (!user) return null;
 
-  // Get profile picture or generate initial
+  // Get profile picture - use same logic as Navigation component for consistency
   const getProfilePicture = () => {
     if (user.profile_pic) {
-      // Check if it's a full URL or a path
-      if (user.profile_pic.startsWith('http://') || user.profile_pic.startsWith('https://')) {
+      // Check if it's a full URL
+      if (user.profile_pic.startsWith('http')) {
         return user.profile_pic;
       }
-      // If it's stored in public/profile_pics
-      if (user.profile_pic.includes('profile_pics')) {
+      // If it has a path separator, extract filename
+      if (user.profile_pic.includes('/')) {
         return `/profile_pics/${user.profile_pic.split('/').pop()}`;
       }
-      // If it's from Laravel storage
-      return `http://localhost:8000/storage/${user.profile_pic}`;
+      // Otherwise use it directly
+      return `/profile_pics/${user.profile_pic}`;
     }
     return null;
   };

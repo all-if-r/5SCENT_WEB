@@ -271,6 +271,7 @@ class OrderController extends Controller
         // Create initial payment notification
         $orderCode = OrderCodeHelper::formatOrderCode($order);
         NotificationService::createPaymentNotification(
+            $order->user_id,
             $order->order_id,
             "Your payment for order {$orderCode} is pending and is being processed."
         );

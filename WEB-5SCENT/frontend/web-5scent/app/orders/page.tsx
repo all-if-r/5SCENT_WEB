@@ -381,7 +381,47 @@ function OrderHistoryContent() {
   const handleConfirmAction = async (confirmed: boolean) => {
     if (!confirmationModal.order) return;
 
-    if (confirmationModal.type === 'mark_received' && confirmed) {
+    if (!confirmed) {
+      handleCloseConfirmation();
+      return;
+    }
+
+    if (confirmationModal.type === 'cancel_order') {
+      try {
+        setConfirmLoading(true);
+        // Cancel the order
+        await api.put(`/orders/${confirmationModal.order.order_id}`, {
+          status: 'Cancelled',
+        });
+        showToast('Order cancelled successfully!', 'success');
+        
+        // Refresh orders
+        const response = await api.get('/orders');
+        let ordersData: GroupedOrders;
+        if (Array.isArray(response.data)) {
+          ordersData = {
+            in_process: response.data.filter((o: OrderData) => ['Pending', 'Packaging'].includes(o.status)),
+            shipping: response.data.filter((o: OrderData) => o.status === 'Shipping'),
+            completed: response.data.filter((o: OrderData) => o.status === 'Delivered'),
+            canceled: response.data.filter((o: OrderData) => o.status === 'Cancelled'),
+          };
+        } else {
+          ordersData = {
+            in_process: Array.isArray(response.data.in_process) ? response.data.in_process : (response.data.in_process ? Object.values(response.data.in_process) : []),
+            shipping: Array.isArray(response.data.shipping) ? response.data.shipping : (response.data.shipping ? Object.values(response.data.shipping) : []),
+            completed: Array.isArray(response.data.completed) ? response.data.completed : (response.data.completed ? Object.values(response.data.completed) : []),
+            canceled: Array.isArray(response.data.canceled) ? response.data.canceled : (response.data.canceled ? Object.values(response.data.canceled) : []),
+          };
+        }
+        setOrders(ordersData);
+        handleCloseConfirmation();
+      } catch (error: any) {
+        showToast(error.response?.data?.message || 'Failed to cancel order', 'error');
+        console.error(error);
+      } finally {
+        setConfirmLoading(false);
+      }
+    } else if (confirmationModal.type === 'mark_received') {
       try {
         setConfirmLoading(true);
         // Update order status to Delivered
@@ -416,13 +456,31 @@ function OrderHistoryContent() {
       } finally {
         setConfirmLoading(false);
       }
-    } else {
-      handleCloseConfirmation();
     }
   };
 
   const handlePayNow = async (order: OrderData) => {
     try {
+      // First check if existing QRIS payment is already expired
+      try {
+        const detailResponse = await api.get(`/orders/${order.order_id}/qris-detail`);
+        
+        if (detailResponse.data?.success && detailResponse.data?.qris) {
+          const qris = detailResponse.data.qris;
+          const currentTime = new Date();
+          const expiredAtTime = new Date(qris.expired_at);
+          
+          // Check if QRIS has expired
+          if (currentTime > expiredAtTime || qris.effective_status === 'expire' || qris.status === 'expire') {
+            showToast('This payment has expired. Please create a new payment.', 'error');
+            return;
+          }
+        }
+      } catch (detailError) {
+        // If detail fetch fails, continue to create fresh payment
+        console.log('Could not fetch existing QRIS details, creating fresh payment...');
+      }
+
       // Create QRIS payment for the existing order
       const paymentResponse = await api.post('/payments/qris', {
         order_id: order.order_id,

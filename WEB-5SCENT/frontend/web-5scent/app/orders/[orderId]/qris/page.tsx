@@ -56,6 +56,9 @@ export default function QrisPage({ params }: PageProps) {
   // Fetch QRIS data - check expiry based on expired_at timestamp
   useEffect(() => {
     if (!orderId) return;
+    
+    // Don't re-fetch if data is already loaded (prevents timer reset)
+    if (data) return;
 
     const fetchData = async () => {
       try {
@@ -107,7 +110,7 @@ export default function QrisPage({ params }: PageProps) {
     };
 
     fetchData();
-  }, [orderId]);
+  }, [orderId, data]);
 
   // Countdown timer
   useEffect(() => {
